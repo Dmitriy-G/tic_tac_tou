@@ -31,3 +31,12 @@ export function calculateWinner(squares: BoardState): WinResult | null {
 export function isBoardFull(squares: BoardState): boolean {
   return squares.every((square) => square !== null)
 }
+
+export function findChangedIndex(previous: BoardState, next: BoardState): number | null {
+  for (let i = 0; i < next.length; i++) {
+    if (next[i] !== null && next[i] !== previous[i]) {
+      return i
+    }
+  }
+  return null
+}

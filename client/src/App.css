@@ -1,9 +1,17 @@
 .app {
   display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2rem;
+  padding: 2rem;
+}
+
+.game {
+  display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  padding: 2rem;
 }
 
 .status {
@@ -51,4 +59,33 @@
 .error {
   color: #e5484d;
   font-size: 0.95rem;
+}
+
+.log {
+  width: 20rem;
+  max-height: 28rem;
+  overflow-y: auto;
+  border: 1px solid #3a3a3a;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+
+.log h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.log__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.log__empty {
+  opacity: 0.6;
 }
