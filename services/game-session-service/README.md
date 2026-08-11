@@ -34,6 +34,11 @@ The service starts on port `8082` (see `src/main/resources/application.yml`).
 | `POST` | `/sessions/{sessionId}/simulate` | Trigger the automated simulation of a game until it concludes |
 | `GET` | `/sessions/{sessionId}` | Retrieve session details, including game state and move history |
 
+## API documentation
+
+Swagger UI: `http://localhost:8082/swagger-ui.html`
+OpenAPI JSON: `http://localhost:8082/v3/api-docs`
+
 ## Status
 
 Skeleton only: controllers, services, and the Game Engine client are scaffolded but method bodies are not implemented yet (`UnsupportedOperationException`).
