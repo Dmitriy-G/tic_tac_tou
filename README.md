@@ -14,22 +14,27 @@ A distributed Tic Tac Toe application in which the game is played automatically 
 - **Game Session Service** — creates and manages game sessions, automates moves for both players, and coordinates with the Game Engine Service.
 - **UI** — starts a simulation and renders the board, status, and move history as the microservices play against each other.
 
-See `task.pdf` / `task.MD` for the full assignment spec.
-
 ## Running each service
 
 Each service is a standalone project; see its own README for details.
 
+### Game Engine Service
+
 ```bash
-# Game Engine Service
 cd services/game-engine-service
 mvn spring-boot:run
+```
 
-# Game Session Service
+### Game Session Service
+
+```bash
 cd services/game-session-service
 mvn spring-boot:run
+```
 
-# UI
+### UI
+
+```bash
 cd client
 npm install
 npm run dev
