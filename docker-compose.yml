@@ -1,10 +1,49 @@
 services:
+  engine-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: engine_db
+      POSTGRES_USER: engine
+      POSTGRES_PASSWORD: engine
+    ports:
+      - "5433:5432"
+    volumes:
+      - engine-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U engine -d engine_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  session-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: session_db
+      POSTGRES_USER: session
+      POSTGRES_PASSWORD: session
+    ports:
+      - "5434:5432"
+    volumes:
+      - session-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U session -d session_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   tictactoe-engine:
     build:
       context: .
       dockerfile: services/tictactoe-engine/Dockerfile
     ports:
       - "8081:8081"
+    environment:
+      ENGINE_DB_URL: jdbc:postgresql://engine-db:5432/engine_db
+      ENGINE_DB_USERNAME: engine
+      ENGINE_DB_PASSWORD: engine
+    depends_on:
+      engine-db:
+        condition: service_healthy
 
   tictactoe-session:
     build:
@@ -14,8 +53,14 @@ services:
       - "8082:8082"
     environment:
       ENGINE_BASE_URL: http://tictactoe-engine:8081
+      SESSION_DB_URL: jdbc:postgresql://session-db:5432/session_db
+      SESSION_DB_USERNAME: session
+      SESSION_DB_PASSWORD: session
     depends_on:
-      - tictactoe-engine
+      tictactoe-engine:
+        condition: service_started
+      session-db:
+        condition: service_healthy
 
   tictactoe-frontend:
     build:
@@ -26,3 +71,7 @@ services:
       VITE_SESSION_SERVICE_URL: http://localhost:8082
     depends_on:
       - tictactoe-session
+
+volumes:
+  engine-db-data:
+  session-db-data:

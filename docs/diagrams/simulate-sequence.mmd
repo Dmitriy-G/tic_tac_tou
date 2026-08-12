@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant UI as tictactoe-frontend
+    participant Session as tictactoe-session
+    participant Engine as tictactoe-engine
+
+    UI->>Session: POST /sessions
+    Session-->>UI: 201 {sessionId, status: CREATED}
+    UI->>Session: GET /sessions/{id}/events (SSE, subscribe)
+    UI->>Session: POST /sessions/{id}/simulate
+    Session-->>UI: 202 {status: IN_PROGRESS}
+
+    loop until terminal status or 9 moves
+        Session->>Engine: POST /games/{gameId}/move {symbol, position}
+        Engine-->>Session: 200 {board, status, nextSymbol, winner?, winningLine?}
+        Session-->>UI: SSE event: board + status
+    end
+
+    Session-->>UI: SSE event: terminal status (X_WON / O_WON / DRAW / FAILED)

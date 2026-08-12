@@ -29,6 +29,9 @@ mvn test -pl services/tictactoe-engine    # one module
 mvn test -Dtest=GameServiceTest
 mvn test -Dtest=GameServiceTest#shouldDetectDiagonalWin
 
+# Postgres for local (non-docker) runs — each service needs its own database reachable
+docker compose up -d engine-db session-db
+
 # Run a single service
 mvn spring-boot:run -pl services/tictactoe-engine
 mvn spring-boot:run -pl services/tictactoe-session
@@ -64,7 +67,7 @@ docker compose up --build
 │   │       ├── domain/       # Board, GameStatus, Symbol, Game
 │   │       ├── dto/          # request/response records
 │   │       ├── exception/    # custom exceptions + @RestControllerAdvice
-│   │       ├── repository/   # in-memory store
+│   │       ├── repository/   # JPA entities + PostgreSQL-backed store (engine_db)
 │   │       └── service/      # game rules
 │   ├── tictactoe-session/
 │   │   └── src/main/java/com/tictactoe/session/
@@ -190,7 +193,15 @@ CREATED -> IN_PROGRESS -> {X_WON | O_WON | DRAW | FAILED | CANCELLED}
 
 ### Storage
 
-`ConcurrentHashMap` in a `repository/` class behind an interface. **A `ConcurrentHashMap` alone is not thread-safe for read-modify-write on a board** — mutate through `compute()` or a per-game lock so two concurrent moves on the same game produce exactly one success and one 409. Add a TTL/eviction sweep for finished games and say so in the README.
+Each service owns a dedicated PostgreSQL database — `engine_db` for the engine, `session_db` for the session service. **The two services never share a database or a schema**; each has its own JDBC datasource, its own Flyway migration history, and its own JPA entities living in that service's `repository/` package (entities are private to the repository layer — domain classes stay plain and DB-agnostic, mapped explicitly in the `*Repository` implementation, the same way DTOs are mapped in `mapper/`).
+
+- **Schema is owned by Flyway**, not Hibernate: `spring.jpa.hibernate.ddl-auto` is `validate`, never `update` or `create`. Migrations live in `src/main/resources/db/migration` per service.
+- `engine_db.games (id UUID, board VARCHAR(9), state VARCHAR(20))` — the 9-cell board is encoded as a 9-character string (`X`/`O`/`_` for empty); `winner` is derived from `state`, not stored separately.
+- `session_db.sessions (id UUID)` — an identity/anchor row only; `sessionId` **is** `gameId` so no separate column is needed, and the board/move history are deliberately not duplicated here (see anti-patterns).
+- `session_db.simulations (id UUID, session_id UUID FK -> sessions, errors_count INT, started_at TIMESTAMP, finished_at TIMESTAMP, status VARCHAR(20))` — one row per `/simulate` run, the audit trail of run outcomes.
+- Connection pool: explicit connect/read behaviour via the datasource properties in `application.yml`, env-overridable (`ENGINE_DB_URL`/`SESSION_DB_URL` + `*_USERNAME`/`*_PASSWORD`), same pattern as `ENGINE_BASE_URL`.
+- Tests run against H2 in PostgreSQL compatibility mode (`MODE=PostgreSQL`) via `application-test.yml`, with the same Flyway migrations applied — not Testcontainers (out of scope, see below).
+- A `ConcurrentHashMap`-backed read-modify-write guard is still required wherever mutable in-flight state genuinely can't live in the database without duplicating another service's data (e.g. a session's live status/move history while a simulation is running) — mutate through `compute()` or a per-key lock so two concurrent moves on the same game produce exactly one success and one 409.
 
 ### Engine HTTP client (session service)
 
@@ -248,7 +259,7 @@ Coverage that must exist:
 Multi-stage per service, mirroring the reference project:
 
 ```dockerfile
-FROM eclipse-temurin:21-jdk-alpine AS builder
+FROM maven:3.9.9-eclipse-temurin-21-alpine AS builder
 WORKDIR /build
 COPY pom.xml ./
 COPY services/ services/
@@ -263,7 +274,7 @@ USER appuser
 ENTRYPOINT ["java","-jar","app.jar"]
 ```
 
-Non-root user, JRE-only runtime layer. `docker compose up` must bring up all three with one command.
+Non-root user, JRE-only runtime layer. `docker compose up` must bring up all five (two `postgres:16-alpine` databases plus the three services) with one command; the engine and session services `depends_on` their respective database with a `service_healthy` condition (`pg_isready`) so they never start against a database that isn't ready yet.
 
 ---
 
@@ -288,9 +299,9 @@ Non-root user, JRE-only runtime layer. `docker compose up` must bring up all thr
 
 ## Out of Scope — do not add these
 
-Authentication/authorisation, API gateway, Eureka, Kafka or any message broker, MongoDB/Postgres/Cassandra, GraphQL, CDC, Testcontainers, LLM-driven move strategies, batch simulation of multiple games per request, multi-tenancy.
+Authentication/authorisation, API gateway, Eureka, Kafka or any message broker, MongoDB/Cassandra/any NoSQL store, GraphQL, CDC, Testcontainers, LLM-driven move strategies, batch simulation of multiple games per request, multi-tenancy.
 
-Each of these belongs in `docs/adr/` as a considered-and-rejected alternative with rationale — that scores better than implementing it. In-memory storage and REST are deliberate choices for this scope, not omissions.
+Each of these belongs in `docs/adr/` as a considered-and-rejected alternative with rationale — that scores better than implementing it. REST is a deliberate choice for this scope, not an omission. PostgreSQL (one instance per service, via Flyway-managed schemas) **is** in scope — see Storage above; don't reintroduce in-memory maps as the system of record for `games`, `sessions`, or `simulations`.
 
 ## Anti-patterns to avoid
 

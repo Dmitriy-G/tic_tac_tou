@@ -3,14 +3,17 @@ package com.tictactoe.session.service;
 import com.tictactoe.session.client.GameEngineClient;
 import com.tictactoe.session.domain.GameSession;
 import com.tictactoe.session.domain.MoveRecord;
+import com.tictactoe.session.domain.Simulation;
 import com.tictactoe.session.domain.SessionEvent;
 import com.tictactoe.session.domain.SessionStatus;
 import com.tictactoe.session.exception.SessionNotFoundException;
 import com.tictactoe.session.repository.SessionRepository;
+import com.tictactoe.session.repository.SimulationRepository;
 import com.tictactoe.session.sse.SseEmitterRegistry;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -38,13 +41,16 @@ public class SessionServiceImpl implements SessionService {
 
     private final GameEngineClient gameEngineClient;
     private final SessionRepository sessionRepository;
+    private final SimulationRepository simulationRepository;
     private final SseEmitterRegistry emitterRegistry;
 
     public SessionServiceImpl(GameEngineClient gameEngineClient,
                                SessionRepository sessionRepository,
+                               SimulationRepository simulationRepository,
                                SseEmitterRegistry emitterRegistry) {
         this.gameEngineClient = gameEngineClient;
         this.sessionRepository = sessionRepository;
+        this.simulationRepository = simulationRepository;
         this.emitterRegistry = emitterRegistry;
     }
 
@@ -64,7 +70,15 @@ public class SessionServiceImpl implements SessionService {
         session.setStatus(SessionStatus.IN_PROGRESS);
         session.setMoveHistory(new ArrayList<>());
 
-        Thread.ofVirtual().start(() -> runMockSimulation(session));
+        Simulation simulation = new Simulation();
+        simulation.setId(UUID.randomUUID().toString());
+        simulation.setSessionId(sessionId);
+        simulation.setErrorsCount(0);
+        simulation.setStartedAt(Instant.now());
+        simulation.setStatus(SessionStatus.IN_PROGRESS);
+        simulationRepository.save(simulation);
+
+        Thread.ofVirtual().start(() -> runMockSimulation(session, simulation));
 
         return session;
     }
@@ -86,7 +100,7 @@ public class SessionServiceImpl implements SessionService {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    private void runMockSimulation(GameSession session) {
+    private void runMockSimulation(GameSession session, Simulation simulation) {
         boolean useWinScript = ThreadLocalRandom.current().nextBoolean();
         String[] players = useWinScript ? WIN_SCRIPT_PLAYERS : DRAW_SCRIPT_PLAYERS;
         int[] positions = useWinScript ? WIN_SCRIPT_POSITIONS : DRAW_SCRIPT_POSITIONS;
@@ -117,6 +131,10 @@ public class SessionServiceImpl implements SessionService {
         }
 
         emitterRegistry.complete(session.getSessionId());
+
+        simulation.setStatus(session.getStatus());
+        simulation.setFinishedAt(Instant.now());
+        simulationRepository.save(simulation);
     }
 
     private void sleep(long millis) {
