@@ -1,15 +1,22 @@
 package com.tictactoe.session.service;
 
 import com.tictactoe.session.client.GameEngineClient;
+import com.tictactoe.session.client.GameEngineResponse;
+import com.tictactoe.session.config.MoveStrategyResolver;
 import com.tictactoe.session.domain.GameSession;
 import com.tictactoe.session.domain.MoveRecord;
 import com.tictactoe.session.domain.Simulation;
 import com.tictactoe.session.domain.SessionEvent;
 import com.tictactoe.session.domain.SessionStatus;
 import com.tictactoe.session.exception.SessionNotFoundException;
+import com.tictactoe.session.exception.SimulationAlreadyRunningException;
 import com.tictactoe.session.repository.SessionRepository;
 import com.tictactoe.session.repository.SimulationRepository;
 import com.tictactoe.session.sse.SseEmitterRegistry;
+import com.tictactoe.session.strategy.MoveStrategy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -18,47 +25,47 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * The real simulation would delegate move generation and rule enforcement to
- * {@link GameEngineClient}, which is still a skeleton. Until that is implemented, this class
- * drives {@link #simulate(String)} with a couple of scripted move sequences so the SSE pipeline
- * end-to-end (session -> events -> client) can be built and demoed.
+ * Drives an automated game end-to-end: creates the game at the engine, then alternates X/O moves
+ * (each move's cell chosen by the {@link MoveStrategy} configured for that symbol) until the
+ * engine reports a terminal status, publishing an SSE event after every move.
  */
 @Service
 public class SessionServiceImpl implements SessionService {
 
+    private static final Logger log = LoggerFactory.getLogger(SessionServiceImpl.class);
+
     private static final int BOARD_SIZE = 9;
-    private static final long MOVE_DELAY_MS = 700;
-
-    private static final String[] WIN_SCRIPT_PLAYERS = {"X", "O", "X", "O", "X"};
-    private static final int[] WIN_SCRIPT_POSITIONS = {0, 3, 1, 4, 2};
-    private static final String WIN_SCRIPT_WINNER = "X";
-
-    private static final String[] DRAW_SCRIPT_PLAYERS = {"X", "O", "X", "O", "X", "O", "X", "O", "X"};
-    private static final int[] DRAW_SCRIPT_POSITIONS = {0, 1, 2, 4, 3, 5, 7, 6, 8};
+    private static final int MAX_MOVES = 9;
 
     private final GameEngineClient gameEngineClient;
     private final SessionRepository sessionRepository;
     private final SimulationRepository simulationRepository;
     private final SseEmitterRegistry emitterRegistry;
+    private final MoveStrategyResolver moveStrategyResolver;
+    private final long moveDelayMs;
 
     public SessionServiceImpl(GameEngineClient gameEngineClient,
                                SessionRepository sessionRepository,
                                SimulationRepository simulationRepository,
-                               SseEmitterRegistry emitterRegistry) {
+                               SseEmitterRegistry emitterRegistry,
+                               MoveStrategyResolver moveStrategyResolver,
+                               @Value("${simulation.move-delay-ms:500}") long moveDelayMs) {
         this.gameEngineClient = gameEngineClient;
         this.sessionRepository = sessionRepository;
         this.simulationRepository = simulationRepository;
         this.emitterRegistry = emitterRegistry;
+        this.moveStrategyResolver = moveStrategyResolver;
+        this.moveDelayMs = moveDelayMs;
     }
 
     @Override
     public GameSession createSession() {
         GameSession session = new GameSession();
-        session.setSessionId(UUID.randomUUID().toString());
-        session.setGameId(UUID.randomUUID().toString());
+        String sessionId = UUID.randomUUID().toString();
+        session.setSessionId(sessionId);
+        session.setGameId(sessionId);
         session.setStatus(SessionStatus.CREATED);
         session.setMoveHistory(new ArrayList<>());
         return sessionRepository.save(session);
@@ -67,8 +74,13 @@ public class SessionServiceImpl implements SessionService {
     @Override
     public GameSession simulate(String sessionId) {
         GameSession session = getSession(sessionId);
+        if (session.getStatus() == SessionStatus.IN_PROGRESS || isTerminal(session.getStatus())) {
+            throw new SimulationAlreadyRunningException(sessionId);
+        }
+
         session.setStatus(SessionStatus.IN_PROGRESS);
         session.setMoveHistory(new ArrayList<>());
+        sessionRepository.save(session);
 
         Simulation simulation = new Simulation();
         simulation.setId(UUID.randomUUID().toString());
@@ -78,7 +90,7 @@ public class SessionServiceImpl implements SessionService {
         simulation.setStatus(SessionStatus.IN_PROGRESS);
         simulationRepository.save(simulation);
 
-        Thread.ofVirtual().start(() -> runMockSimulation(session, simulation));
+        Thread.ofVirtual().start(() -> runSimulation(session, simulation));
 
         return session;
     }
@@ -95,53 +107,95 @@ public class SessionServiceImpl implements SessionService {
         return emitterRegistry.register(sessionId);
     }
 
-    @Override
-    public GameSession cancel(String sessionId) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
+    private void runSimulation(GameSession session, Simulation simulation) {
+        String sessionId = session.getSessionId();
+        String gameId = session.getGameId();
+        int errorsCount = 0;
 
-    private void runMockSimulation(GameSession session, Simulation simulation) {
-        boolean useWinScript = ThreadLocalRandom.current().nextBoolean();
-        String[] players = useWinScript ? WIN_SCRIPT_PLAYERS : DRAW_SCRIPT_PLAYERS;
-        int[] positions = useWinScript ? WIN_SCRIPT_POSITIONS : DRAW_SCRIPT_POSITIONS;
-        String winner = useWinScript ? WIN_SCRIPT_WINNER : null;
+        try {
+            gameEngineClient.createGame(gameId);
 
-        List<String> board = new ArrayList<>(Collections.nCopies(BOARD_SIZE, null));
+            List<String> board = new ArrayList<>(Collections.nCopies(BOARD_SIZE, null));
+            for (int moveNumber = 1; moveNumber <= MAX_MOVES; moveNumber++) {
+                if (!sleepInterruptibly(moveDelayMs)) {
+                    break;
+                }
 
-        for (int i = 0; i < players.length; i++) {
-            sleep(MOVE_DELAY_MS);
+                String symbol = moveNumber % 2 == 1 ? "X" : "O";
+                MoveStrategy strategy = moveStrategyResolver.resolve(symbol);
+                int position = strategy.selectMove(board, symbol);
 
-            String player = players[i];
-            int position = positions[i];
-            board.set(position, player);
+                GameEngineResponse response = gameEngineClient.move(gameId, symbol, position);
+                if (response == null || response.getBoard() == null || response.getStatus() == null) {
+                    throw new IllegalStateException("Engine returned an incomplete response for move " + moveNumber);
+                }
+                board = response.getBoard();
 
-            MoveRecord move = new MoveRecord();
-            move.setPlayer(player);
-            move.setPosition(position);
-            session.getMoveHistory().add(move);
+                MoveRecord record = new MoveRecord();
+                record.setPlayer(symbol);
+                record.setPosition(position);
+                session.getMoveHistory().add(record);
 
-            boolean isLastMove = i == players.length - 1;
-            SessionStatus status = isLastMove
-                    ? (winner != null ? SessionStatus.X_WON : SessionStatus.DRAW)
-                    : SessionStatus.IN_PROGRESS;
-            session.setStatus(status);
+                SessionStatus status = mapStatus(response.getStatus());
+                session.setStatus(status);
 
-            emitterRegistry.publish(session.getSessionId(), new SessionEvent(
-                    session.getSessionId(), new ArrayList<>(board), status, isLastMove ? winner : null));
+                log.info("session={} move={} symbol={} position={} status={}",
+                        sessionId, moveNumber, symbol, position, status);
+
+                emitterRegistry.publish(sessionId, new SessionEvent(sessionId, new ArrayList<>(board), status,
+                        status != SessionStatus.IN_PROGRESS ? response.getWinner() : null));
+
+                if (status != SessionStatus.IN_PROGRESS) {
+                    break;
+                }
+            }
+
+            if (session.getStatus() == SessionStatus.IN_PROGRESS) {
+                // Hard cap reached (or interrupted) without a terminal outcome from the engine.
+                session.setStatus(SessionStatus.FAILED);
+                errorsCount++;
+            }
+        } catch (RuntimeException e) {
+            log.warn("session={} simulation failed: {}", sessionId, e.getMessage());
+            session.setStatus(SessionStatus.FAILED);
+            errorsCount++;
+        } finally {
+            emitterRegistry.complete(sessionId);
+            simulation.setErrorsCount(errorsCount);
+            simulation.setStatus(session.getStatus());
+            simulation.setFinishedAt(Instant.now());
+            simulationRepository.save(simulation);
         }
-
-        emitterRegistry.complete(session.getSessionId());
-
-        simulation.setStatus(session.getStatus());
-        simulation.setFinishedAt(Instant.now());
-        simulationRepository.save(simulation);
     }
 
-    private void sleep(long millis) {
+    private static SessionStatus mapStatus(String engineStatus) {
+        return switch (engineStatus) {
+            case "IN_PROGRESS" -> SessionStatus.IN_PROGRESS;
+            case "X_WON" -> SessionStatus.X_WON;
+            case "O_WON" -> SessionStatus.O_WON;
+            case "DRAW" -> SessionStatus.DRAW;
+            default -> throw new IllegalStateException("Unknown engine status: " + engineStatus);
+        };
+    }
+
+    private static boolean isTerminal(SessionStatus status) {
+        return status == SessionStatus.X_WON
+                || status == SessionStatus.O_WON
+                || status == SessionStatus.DRAW
+                || status == SessionStatus.FAILED
+                || status == SessionStatus.CANCELLED;
+    }
+
+    private boolean sleepInterruptibly(long millis) {
+        if (millis <= 0) {
+            return true;
+        }
         try {
             Thread.sleep(millis);
+            return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            return false;
         }
     }
 }

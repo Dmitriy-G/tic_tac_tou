@@ -12,6 +12,4 @@ public interface SessionService {
     GameSession getSession(String sessionId);
 
     SseEmitter subscribe(String sessionId);
-
-    GameSession cancel(String sessionId);
 }

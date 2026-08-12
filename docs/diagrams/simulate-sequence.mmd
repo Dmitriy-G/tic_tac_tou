@@ -8,6 +8,8 @@ sequenceDiagram
     UI->>Session: GET /sessions/{id}/events (SSE, subscribe)
     UI->>Session: POST /sessions/{id}/simulate
     Session-->>UI: 202 {status: IN_PROGRESS}
+    Session->>Engine: POST /games {gameId}
+    Engine-->>Session: 201 {board, status: IN_PROGRESS}
 
     loop until terminal status or 9 moves
         Session->>Engine: POST /games/{gameId}/move {symbol, position}

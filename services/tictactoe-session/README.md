@@ -16,6 +16,11 @@ Manages game session lifecycle and automates gameplay by generating moves for bo
 | `SESSION_DB_URL` | `jdbc:postgresql://localhost:5434/session_db` | JDBC URL for `session_db` |
 | `SESSION_DB_USERNAME` | `session` | Database username |
 | `SESSION_DB_PASSWORD` | `session` | Database password |
+| `ENGINE_CONNECT_TIMEOUT_MS` | `2000` | Connect timeout for calls to the engine |
+| `ENGINE_READ_TIMEOUT_MS` | `3000` | Read timeout for calls to the engine |
+| `SIMULATION_MOVE_DELAY_MS` | `500` | Delay between simulated moves, so the UI shows progression (tests set this to `0`) |
+| `SIMULATION_STRATEGY_X` | `SIMPLE` | Move strategy for `X`: `SIMPLE` (random empty cell) or `ADVANCED` (not implemented yet) |
+| `SIMULATION_STRATEGY_O` | `SIMPLE` | Move strategy for `O`: `SIMPLE` (random empty cell) or `ADVANCED` (not implemented yet) |
 
 ## Running
 
@@ -63,4 +68,4 @@ A session's *live*, in-flight `status`/move history while a simulation is actual
 
 ## Status
 
-The SSE pipeline (session → events → client) works end-to-end today, but `simulate()` drives a couple of **scripted mock move sequences** rather than real gameplay — the real simulation would delegate move generation and rule enforcement to `GameEngineClient`, which (along with `cancel()`, the `strategy/` implementations, and the engine client's timeouts/retries) is still a skeleton (`UnsupportedOperationException`). `dto/` is a placeholder package, not yet populated.
+`simulate()` now drives real gameplay: it creates the game at the engine (`gameId` == `sessionId`), then alternates `X`/`O` moves — the cell for each move chosen by the `MoveStrategy` configured for that symbol (`simulation.strategy.x` / `simulation.strategy.o`) — publishing an SSE event after every move, until the engine reports a terminal status or the 9-move hard cap is hit. Only the `SIMPLE` strategy (`RandomMoveStrategy`, a uniformly random empty cell) is implemented; `ADVANCED` (`RuleBasedMoveStrategy`) is still a skeleton (`UnsupportedOperationException`). `cancel()` is not implemented yet, and the engine client currently retries on nothing — a 409 mid-simulation or an unreachable engine simply fails the simulation (`FAILED`) rather than retrying or re-reading the board.

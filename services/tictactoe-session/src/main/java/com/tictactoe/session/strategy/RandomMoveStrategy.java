@@ -1,5 +1,6 @@
 package com.tictactoe.session.strategy;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -13,6 +14,15 @@ public class RandomMoveStrategy implements MoveStrategy {
 
     @Override
     public int selectMove(List<String> board, String symbol) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        List<Integer> emptyCells = new ArrayList<>();
+        for (int i = 0; i < board.size(); i++) {
+            if (board.get(i) == null) {
+                emptyCells.add(i);
+            }
+        }
+        if (emptyCells.isEmpty()) {
+            throw new IllegalStateException("No empty cells left to move into");
+        }
+        return emptyCells.get(random.nextInt(emptyCells.size()));
     }
 }

@@ -2,6 +2,7 @@ package com.tictactoe.session.controller;
 
 import com.tictactoe.session.domain.GameSession;
 import com.tictactoe.session.exception.SessionNotFoundException;
+import com.tictactoe.session.exception.SimulationAlreadyRunningException;
 import com.tictactoe.session.service.SessionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -56,16 +57,15 @@ public class SessionController {
         return sessionService.subscribe(sessionId);
     }
 
-    @PostMapping("/{sessionId}/cancel")
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    @Operation(summary = "Cancel a simulation", description = "Cancels a running simulation for the session.")
-    public GameSession cancel(@Parameter(description = "Identifier of the session") @PathVariable String sessionId) {
-        return sessionService.cancel(sessionId);
-    }
-
     @ExceptionHandler(SessionNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public String handleSessionNotFound(SessionNotFoundException e) {
+        return e.getMessage();
+    }
+
+    @ExceptionHandler(SimulationAlreadyRunningException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public String handleSimulationAlreadyRunning(SimulationAlreadyRunningException e) {
         return e.getMessage();
     }
 }

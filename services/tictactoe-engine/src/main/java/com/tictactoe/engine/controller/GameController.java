@@ -1,6 +1,7 @@
 package com.tictactoe.engine.controller;
 
 import com.tictactoe.engine.domain.Game;
+import com.tictactoe.engine.dto.CreateGameRequest;
 import com.tictactoe.engine.dto.MoveRequest;
 import com.tictactoe.engine.service.GameService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,8 +32,11 @@ public class GameController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create a game", description = "Creates a new game and returns its initial board and status.")
-    public Game createGame() {
-        return gameService.createGame(UUID.randomUUID().toString());
+    public Game createGame(@RequestBody(required = false) CreateGameRequest request) {
+        String gameId = request != null && request.gameId() != null && !request.gameId().isBlank()
+                ? request.gameId()
+                : UUID.randomUUID().toString();
+        return gameService.createGame(gameId);
     }
 
     @PostMapping("/{gameId}/move")
