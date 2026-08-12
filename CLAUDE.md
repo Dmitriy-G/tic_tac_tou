@@ -1,28 +1,315 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repository.
 
-## Repository layout
+## Project
 
-This is a monorepo for a distributed Tic Tac Toe assignment where the game is played automatically by backend microservices while the UI observes and displays progress (see `task.MD` / `task.pdf` for the full spec).
+Distributed Tic Tac Toe played automatically by microservices. Three components:
+
+| Component | Module | Port | Responsibility |
+|---|---|---|---|
+| Game Engine Service | `services/tictactoe-engine` | 8081 | Board state, move validation, outcome detection. **Sole authority on game rules.** |
+| Game Session Service | `services/tictactoe-session` | 8082 | Session lifecycle, automated move generation for both players, orchestration of the engine |
+| Frontend | `services/tictactoe-frontend` | 5173 | Board rendering, live updates via SSE, move log, error display |
+
+This is a home assignment. Optimise for correctness, readable structure, and test quality — not for scale.
+
+---
+
+## Essential Commands
+
+```bash
+# Build everything
+mvn clean install
+mvn clean install -DskipTests
+
+# Tests
+mvn test                                  # all
+mvn test -pl services/tictactoe-engine    # one module
+mvn test -Dtest=GameServiceTest
+mvn test -Dtest=GameServiceTest#shouldDetectDiagonalWin
+
+# Run a single service
+mvn spring-boot:run -pl services/tictactoe-engine
+mvn spring-boot:run -pl services/tictactoe-session
+
+# Frontend
+cd services/tictactoe-frontend
+npm install
+npm run dev          # Vite dev server
+npm run build
+npm run type-check   # tsc --noEmit
+npm run lint:biome
+
+# Full stack
+docker compose up --build
+```
+
+---
+
+## Project Structure
 
 ```
-client/                          # React + TypeScript UI — see client/CLAUDE.md
-services/
-  game-engine-service/           # Java + Spring Boot — board state, move validation, game outcome
-  game-session-service/          # Java + Spring Boot — session management, automated move generation
+.
+├── pom.xml                              # aggregator, all versions in <properties>
+├── docker-compose.yml
+├── README.md  CLAUDE.md
+├── services/
+│   ├── tictactoe-engine/
+│   │   ├── pom.xml  Dockerfile  README.md
+│   │   └── src/main/java/com/tictactoe/engine/
+│   │       ├── EngineApplication.java
+│   │       ├── config/       # @ConfigurationProperties, beans
+│   │       ├── controller/   # REST only, no logic
+│   │       ├── domain/       # Board, GameStatus, Symbol, Game
+│   │       ├── dto/          # request/response records
+│   │       ├── exception/    # custom exceptions + @RestControllerAdvice
+│   │       ├── repository/   # in-memory store
+│   │       └── service/      # game rules
+│   ├── tictactoe-session/
+│   │   └── src/main/java/com/tictactoe/session/
+│   │       ├── SessionApplication.java
+│   │       ├── client/       # engine HTTP client + its DTOs
+│   │       ├── config/  controller/  domain/  dto/  exception/  repository/
+│   │       ├── service/      # session lifecycle, simulation runner
+│   │       ├── strategy/     # MoveStrategy implementations
+│   │       └── sse/          # emitter registry / event publishing
+│   └── tictactoe-frontend/
+│       └── src/{components,views,hooks,services,config,utils,styles}
+└── docs/
+    ├── adr/                             # 0001-....md, one decision per file
+    ├── development/{setup,testing}/
+    └── diagrams/                        # Mermaid .mmd — HLD + sequence
 ```
 
-Each subproject is independent (its own `package.json` / `pom.xml`, no shared parent build) and is run separately — see the root `README.md` for run commands. There is currently no build orchestration tying the three together.
+Each Maven module contains **only** `pom.xml`, `Dockerfile`, `README.md`, `src/main/java`, `src/main/resources/application.yml`, `src/test/`. Nothing else.
 
-## Service responsibilities
+---
 
-- **game-engine-service** (port 8081): owns board state per `gameId`. `POST /games/{gameId}/move` validates and applies a move, returning the updated game/status; `GET /games/{gameId}` returns current state. All classes are currently skeletons (`UnsupportedOperationException` bodies) — no board/move/win logic is implemented yet.
-- **game-session-service** (port 8082): owns sessions. `POST /sessions` creates a session; `POST /sessions/{sessionId}/simulate` drives an automated game to completion by generating moves for both players and forwarding them to `game-engine-service` via `GameEngineClient`; `GET /sessions/{sessionId}` returns session state and move history. Also skeletons only.
-- **client**: renders the board and status from data coming from `game-session-service` — see `client/CLAUDE.md` for its internal architecture (note: as of now its `App.tsx` still implements local click-to-play state rather than consuming the session service; that needs to be reworked to fit this spec).
+## API Contract — implement exactly as written
 
-## Conventions used across the Java services
+Paths come from the assignment spec. **Do not add a `/api/v1` prefix and do not rename them.**
 
-- Package root: `com.tictactoe.<service-name-without-dashes>` (e.g. `com.tictactoe.gameengine`).
-- Layout per service: `controller/`, `service/` (interface + `*Impl`), `model/`, `exception/`; `game-session-service` additionally has `client/` for the REST client to `game-engine-service`.
-- Spring Boot 3.3.5, Java 21, `spring-boot-starter-web` only — no persistence dependency added yet (task allows a plain in-memory structure instead of H2).
+### Engine
+
+```
+POST   /games                      -> 201 {gameId, board, status, nextSymbol}
+POST   /games/{gameId}/move        -> 200 {gameId, board, status, nextSymbol, winner, winningLine}
+GET    /games/{gameId}             -> 200 {gameId, board, status, nextSymbol, winner, winningLine, moves}
+```
+
+Move request body: `{"symbol": "X", "position": 4}` — position is `0..8`, row-major.
+
+The move response **always returns the authoritative board.** The session service never keeps its own copy of the board.
+
+### Session
+
+```
+POST   /sessions                   -> 201 {sessionId, status, createdAt}
+POST   /sessions/{sessionId}/simulate -> 202 {sessionId, status}   (async)
+GET    /sessions/{sessionId}       -> 200 {sessionId, status, board, moves[], winner, error}
+GET    /sessions/{sessionId}/events-> text/event-stream (SSE)
+POST   /sessions/{sessionId}/cancel-> 202
+```
+
+`sessionId` **is** the `gameId` (single UUID, one session = one game). Keep the domain models separate per service anyway — the services must not share a domain class.
+
+### Error response — identical shape in both services
+
+```json
+{
+  "timestamp": "2026-08-12T10:15:30Z",
+  "status": 409,
+  "code": "CELL_OCCUPIED",
+  "message": "Cell 4 is already occupied",
+  "path": "/games/3f2a.../move"
+}
+```
+
+### Status codes
+
+| Code | Use |
+|---|---|
+| 400 | Malformed body, position out of range, unknown symbol |
+| 404 | Unknown gameId / sessionId |
+| 409 | Cell occupied, out-of-turn move, game already finished, simulation already running |
+| 422 | Semantically invalid but well-formed request |
+| 429 | Concurrent-simulation cap exceeded |
+| 500 | Unexpected |
+| 503 | Engine unreachable / circuit open |
+
+Never return 500 for a client mistake. Never return 200 with an error in the body.
+
+---
+
+## Domain Rules (engine is the only place these live)
+
+- Symbols are `X` and `O`. **X always moves first.**
+- 8 winning lines: 3 rows, 3 columns, 2 diagonals.
+- A win on the 9th cell is a **win**, not a draw. Check win before checking board-full.
+- Draw = board full and no winning line.
+- Statuses: `IN_PROGRESS`, `X_WON`, `O_WON`, `DRAW`.
+- The engine enforces turn order itself. It does not trust the caller.
+- Rejected moves: occupied cell, position outside `0..8`, symbol not `X`/`O`, symbol whose turn it isn't, any move on a finished game, unknown gameId.
+- Return `winningLine` (the three indices) on a win — the UI highlights it.
+
+## Session State Machine
+
+```
+CREATED -> IN_PROGRESS -> {X_WON | O_WON | DRAW | FAILED | CANCELLED}
+```
+
+- `/simulate` on a session already `IN_PROGRESS` -> 409. (The UI double-click case — it will happen.)
+- `/simulate` on a terminal session -> 409.
+- **A session must never be left in `IN_PROGRESS` after a failure.** Every exit path from the simulation loop sets a terminal status, including exceptions and thread interruption.
+- Hard cap of 9 iterations in the simulation loop as a safety net, independent of the engine's status response.
+
+## Move Generation
+
+- `MoveStrategy` interface with a `selectMove(board, symbol)` method; implementations `RandomMoveStrategy` and `RuleBasedMoveStrategy` (win > block > center > corner > side).
+- Strategy is resolved per symbol from config, so X and O can differ.
+- `Random` is **injected**, never `new Random()` inline. Tests supply a seeded instance.
+- Never pick from occupied cells; "no empty cells" is a normal loop exit, not an exception.
+- Configurable delay between moves (`simulation.move-delay-ms`, default 500) so the UI shows progression. **Tests set it to 0.**
+
+---
+
+## Code Standards (Java)
+
+- Java 21 — records for DTOs, sealed interfaces and pattern matching where they fit, enhanced switch.
+- Spring Boot 3.3.0, Maven multi-module. Parent = `spring-boot-starter-parent`; every version pinned in the root `<properties>`.
+- **Constructor injection only.** No `@Autowired` on fields.
+- Lombok: `@Slf4j`, `@RequiredArgsConstructor`, `@Builder`, `@Value`. Do not put `@Data` on domain objects.
+- DTOs are records and are separate from domain objects. Map explicitly in a `mapper/` class — no leaking domain types out of the controller.
+- Controllers hold no logic: validate, delegate, map, return.
+- `@Valid` + `@Min`/`@Max`/`@NotNull` on every request DTO.
+- One `@RestControllerAdvice` per service; custom exceptions carry a `code` used in the error body.
+- All config in `application.yml`, env-overridable (`${ENGINE_BASE_URL:http://localhost:8081}`). Nothing hardcoded, ever. Typed via `@ConfigurationProperties`.
+- Naming: `*Controller`, `*Service`, `*Repository`, `*Mapper`, `*Application`.
+- Default IntelliJ Java formatting.
+
+### Storage
+
+`ConcurrentHashMap` in a `repository/` class behind an interface. **A `ConcurrentHashMap` alone is not thread-safe for read-modify-write on a board** — mutate through `compute()` or a per-game lock so two concurrent moves on the same game produce exactly one success and one 409. Add a TTL/eviction sweep for finished games and say so in the README.
+
+### Engine HTTP client (session service)
+
+- `RestClient` (or `WebClient`) with **explicit connect and read timeouts** — the defaults are effectively infinite. This is the most common failure in this task.
+- Spring Retry / Resilience4j: bounded retries with backoff, plus a circuit breaker. Retries are safe because the move endpoint is idempotent per `(gameId, symbol, position)`.
+- Engine down at session creation -> fail fast with 503, do not create a half-session.
+- Engine 409 mid-simulation -> re-read the authoritative board from the response and pick a new cell; after N failures mark the session `FAILED`.
+- Malformed or unexpected engine response -> defensive parsing, never an NPE propagated to the caller.
+
+### Observability
+
+- `spring-boot-starter-actuator` in both services; the session service's readiness reflects engine reachability.
+- Correlation id = `sessionId`, sent as `X-Correlation-Id` and put in MDC. Every log line for a simulation must be greppable by it.
+- Structured JSON logging via `logstash-logback-encoder`.
+- Log every move at INFO with sessionId, move number, symbol, position, resulting status.
+
+---
+
+## Testing Rules
+
+- JUnit 5 + Mockito, `@SpringBootTest`, MockMvc for the web layer, `MockRestServiceServer`/WireMock for the engine from the session side.
+- **Tests must be deterministic.** No `Thread.sleep`, no wall-clock assertions, no reliance on iteration order. Seed the `Random`, set move delay to 0, inject the strategy. A flaky test here is a failed assignment.
+- `application-test.yml` disables anything external so tests run standalone.
+
+Coverage that must exist:
+
+- All 8 win lines, plus win-on-9th-cell beating draw, plus draw.
+- Every rejection path with its exact status code and error `code`.
+- Turn-order enforcement, including a direct out-of-turn POST to the engine.
+- Session service against a mocked engine: success, 404, 409, 500, timeout, garbage body.
+- Full integration flow: create session -> simulate -> poll to a terminal status; assert history length is 5–9 and that replaying the history reproduces the final board.
+- Concurrency: parallel moves to the same cell -> exactly one 200 and one 409; N parallel simulations all reach a terminal state.
+
+---
+
+## Frontend
+
+- React 19 + TypeScript strict + Vite. Biome for lint and format (not ESLint/Prettier).
+- `@tanstack/react-query` for REST; native `EventSource` for the SSE stream.
+- PascalCase component files, `use*` hooks, camelCase service files (`gameApiService.ts`). Named exports for hooks/utils, default export for pages.
+- Required behaviour:
+    - Start button disabled while a simulation is running.
+    - Board renders empty before start; winning line highlighted on completion.
+    - Move log with move numbers.
+    - **SSE fallback**: if the stream errors, fall back to polling `GET /sessions/{id}`.
+    - Page refresh mid-simulation rehydrates from `GET /sessions/{id}` — never show an empty board for a running game.
+    - Late subscriber gets the backlog of moves then live events.
+    - Error banner for: session creation failed, simulation failed, stream lost, backend unreachable.
+- No `localStorage`/`sessionStorage`.
+
+---
+
+## Docker
+
+Multi-stage per service, mirroring the reference project:
+
+```dockerfile
+FROM eclipse-temurin:21-jdk-alpine AS builder
+WORKDIR /build
+COPY pom.xml ./
+COPY services/ services/
+RUN mvn clean package -pl services/tictactoe-engine -am \
+    --batch-mode --no-transfer-progress -Dmaven.test.skip=true
+
+FROM eclipse-temurin:21-jre-alpine
+RUN addgroup -g 1001 -S appgroup && adduser -u 1001 -S -G appgroup appuser
+WORKDIR /app
+COPY --from=builder --chown=appuser:appgroup /build/services/tictactoe-engine/target/*.jar app.jar
+USER appuser
+ENTRYPOINT ["java","-jar","app.jar"]
+```
+
+Non-root user, JRE-only runtime layer. `docker compose up` must bring up all three with one command.
+
+---
+
+## Git Conventions
+
+- Branches: `<type>/<kebab-description>` — `feat`, `fix`, `refactor`, `docs`, `chore`, `test`, `perf`.
+- Conventional Commits: `<type>(<scope>): <summary>`. Scopes: `engine`, `session`, `frontend`, `docs`, `ci`.
+- PR description: Summary / Changes / Testing / Breaking Changes.
+- Small, focused commits — one logical change each.
+
+## Review Checklist
+
+- [ ] Edge cases handled; error handling explicit
+- [ ] No race conditions on shared state
+- [ ] Input validated with `@Valid`
+- [ ] Tests cover happy path **and** error scenarios, and are deterministic
+- [ ] Conventions followed; no dead code or unused imports
+- [ ] New config in `application.yml`, documented in the README
+- [ ] No secrets committed
+
+---
+
+## Out of Scope — do not add these
+
+Authentication/authorisation, API gateway, Eureka, Kafka or any message broker, MongoDB/Postgres/Cassandra, GraphQL, CDC, Testcontainers, LLM-driven move strategies, batch simulation of multiple games per request, multi-tenancy.
+
+Each of these belongs in `docs/adr/` as a considered-and-rejected alternative with rationale — that scores better than implementing it. In-memory storage and REST are deliberate choices for this scope, not omissions.
+
+## Anti-patterns to avoid
+
+- HTTP client without explicit timeouts
+- Field injection
+- Business logic in controllers
+- The session service maintaining its own copy of the board
+- `new Random()` inside a strategy
+- Storing move history in both services
+- Catching `Exception` and returning 200
+- Unbounded thread pool for simulations — use a bounded executor and reject with 429
+- `Thread.sleep` in tests
+
+---
+
+## When Making Changes
+
+1. Rules changes go in the engine's `service/`, never in the session service.
+2. Any new endpoint gets: a DTO record, validation, an error path, a MockMvc test, and a README line.
+3. Any new config key gets a default in `application.yml` and a mention in the service README.
+4. Update `docs/diagrams/` if a call flow changes.
+5. Run `mvn test` and `npm run type-check` before considering a change done.

@@ -1,9 +1,0 @@
-server:
-  port: 8082
-
-spring:
-  application:
-    name: game-session-service
-
-game-engine:
-  base-url: http://localhost:8081
