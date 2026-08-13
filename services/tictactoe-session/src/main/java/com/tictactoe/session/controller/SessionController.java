@@ -1,6 +1,6 @@
 package com.tictactoe.session.controller;
 
-import com.tictactoe.session.domain.GameSession;
+import com.tictactoe.session.dto.SessionDto;
 import com.tictactoe.session.exception.SessionNotFoundException;
 import com.tictactoe.session.exception.SimulationAlreadyRunningException;
 import com.tictactoe.session.service.SessionService;
@@ -34,20 +34,20 @@ public class SessionController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create a session", description = "Creates a new game session, ready to be simulated.")
-    public GameSession createSession() {
+    public SessionDto createSession() {
         return sessionService.createSession();
     }
 
     @PostMapping("/{sessionId}/simulate")
     @ResponseStatus(HttpStatus.ACCEPTED)
     @Operation(summary = "Run a simulation", description = "Starts an automated game for the session; progress and outcome are delivered via the SSE stream.")
-    public GameSession simulate(@Parameter(description = "Identifier of the session") @PathVariable String sessionId) {
-        return sessionService.simulate(sessionId);
+    public void simulate(@Parameter(description = "Identifier of the session") @PathVariable String sessionId) {
+        sessionService.simulate(sessionId);
     }
 
     @GetMapping("/{sessionId}")
     @Operation(summary = "Get session state", description = "Returns the current status and move history for a session.")
-    public GameSession getSession(@Parameter(description = "Identifier of the session") @PathVariable String sessionId) {
+    public SessionDto getSession(@Parameter(description = "Identifier of the session") @PathVariable String sessionId) {
         return sessionService.getSession(sessionId);
     }
 
@@ -55,17 +55,5 @@ public class SessionController {
     @Operation(summary = "Subscribe to simulation events", description = "Server-Sent Events stream of board updates and status (in progress, win, or draw) for a session.")
     public SseEmitter events(@Parameter(description = "Identifier of the session") @PathVariable String sessionId) {
         return sessionService.subscribe(sessionId);
-    }
-
-    @ExceptionHandler(SessionNotFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    public String handleSessionNotFound(SessionNotFoundException e) {
-        return e.getMessage();
-    }
-
-    @ExceptionHandler(SimulationAlreadyRunningException.class)
-    @ResponseStatus(HttpStatus.CONFLICT)
-    public String handleSimulationAlreadyRunning(SimulationAlreadyRunningException e) {
-        return e.getMessage();
     }
 }

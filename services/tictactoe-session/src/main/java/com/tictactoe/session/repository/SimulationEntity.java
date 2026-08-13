@@ -1,9 +1,7 @@
 package com.tictactoe.session.repository;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.tictactoe.session.domain.SimulationStatus;
+import jakarta.persistence.*;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -28,7 +26,8 @@ public class SimulationEntity {
     private Instant finishedAt;
 
     @Column(name = "status", nullable = false, length = 20)
-    private String status;
+    @Enumerated(EnumType.ORDINAL)
+    private SimulationStatus status;
 
     public UUID getId() {
         return id;
@@ -74,7 +73,7 @@ public class SimulationEntity {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(SimulationStatus status) {
         this.status = status;
     }
 }

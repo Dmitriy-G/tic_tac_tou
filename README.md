@@ -38,6 +38,22 @@ mvn spring-boot:run -pl services/tictactoe-engine
 mvn spring-boot:run -pl services/tictactoe-session
 ```
 
+### Running in debug mode
+
+Suspends the JVM until a debugger attaches, on a distinct port per service so both can run at once.
+
+```bash
+mvn spring-boot:run -pl services/tictactoe-engine -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005"
+mvn spring-boot:run -pl services/tictactoe-session -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5006"
+```
+
+On Windows PowerShell, `mvn.cmd` mangles the quoted `-D` value (`Illegal char <*>`) unless parsing is stopped first with `--%`:
+
+```powershell
+mvn spring-boot:run -pl services/tictactoe-engine --% -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005"
+mvn spring-boot:run -pl services/tictactoe-session --% -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5006"
+```
+
 ### Frontend
 
 ```bash

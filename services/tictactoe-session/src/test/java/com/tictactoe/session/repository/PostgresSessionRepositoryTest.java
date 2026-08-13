@@ -1,9 +1,7 @@
 package com.tictactoe.session.repository;
 
 import com.tictactoe.session.SessionApplication;
-import com.tictactoe.session.domain.GameSession;
-import com.tictactoe.session.domain.Simulation;
-import com.tictactoe.session.domain.SessionStatus;
+import com.tictactoe.session.domain.SimulationStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,7 +30,7 @@ class PostgresSessionRepositoryTest {
         GameSession session = new GameSession();
         session.setSessionId(sessionId);
         session.setGameId(sessionId);
-        session.setStatus(SessionStatus.CREATED);
+        session.setStatus(SimulationStatus.CREATED);
         session.setMoveHistory(new ArrayList<>());
 
         sessionRepository.save(session);
@@ -53,7 +51,7 @@ class PostgresSessionRepositoryTest {
         GameSession session = new GameSession();
         session.setSessionId(sessionId);
         session.setGameId(sessionId);
-        session.setStatus(SessionStatus.CREATED);
+        session.setStatus(SimulationStatus.CREATED);
         session.setMoveHistory(new ArrayList<>());
         sessionRepository.save(session);
 
@@ -63,13 +61,13 @@ class PostgresSessionRepositoryTest {
         simulation.setErrorsCount(0);
         simulation.setStartedAt(Instant.now());
         simulation.setFinishedAt(Instant.now());
-        simulation.setStatus(SessionStatus.X_WON);
+        simulation.setStatus(SimulationStatus.X_WON);
         simulationRepository.save(simulation);
 
         Optional<Simulation> latest = simulationRepository.findLatestBySessionId(sessionId);
 
         assertThat(latest).isPresent();
         assertThat(latest.get().getSessionId()).isEqualTo(sessionId);
-        assertThat(latest.get().getStatus()).isEqualTo(SessionStatus.X_WON);
+        assertThat(latest.get().getStatus()).isEqualTo(SimulationStatus.X_WON);
     }
 }

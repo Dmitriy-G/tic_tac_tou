@@ -29,12 +29,12 @@ public class GameEngineClientImpl implements GameEngineClient {
     }
 
     @Override
-    public void createGame(String gameId) {
-        restClient.post()
+    public GameEngineResponse createGame(String gameId) {
+        return restClient.post()
                 .uri("/games")
                 .body(new CreateGameRequestPayload(gameId))
                 .retrieve()
-                .toBodilessEntity();
+                .body(GameEngineResponse.class);
     }
 
     @Override

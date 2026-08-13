@@ -6,13 +6,13 @@ public class SessionEvent {
 
     private String sessionId;
     private List<String> board;
-    private SessionStatus status;
+    private SimulationStatus status;
     private String winner;
 
     public SessionEvent() {
     }
 
-    public SessionEvent(String sessionId, List<String> board, SessionStatus status, String winner) {
+    public SessionEvent(String sessionId, List<String> board, SimulationStatus status, String winner) {
         this.sessionId = sessionId;
         this.board = board;
         this.status = status;
@@ -35,11 +35,11 @@ public class SessionEvent {
         this.board = board;
     }
 
-    public SessionStatus getStatus() {
+    public SimulationStatus getStatus() {
         return status;
     }
 
-    public void setStatus(SessionStatus status) {
+    public void setStatus(SimulationStatus status) {
         this.status = status;
     }
 

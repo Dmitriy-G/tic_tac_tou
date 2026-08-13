@@ -1,6 +1,6 @@
 package com.tictactoe.session.domain;
 
-public enum SessionStatus {
+public enum SimulationStatus {
     CREATED,
     IN_PROGRESS,
     X_WON,

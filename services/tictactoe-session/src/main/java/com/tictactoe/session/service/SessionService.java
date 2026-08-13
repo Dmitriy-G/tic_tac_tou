@@ -1,15 +1,15 @@
 package com.tictactoe.session.service;
 
-import com.tictactoe.session.domain.GameSession;
+import com.tictactoe.session.dto.SessionDto;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 public interface SessionService {
 
-    GameSession createSession();
+    SessionDto createSession();
 
-    GameSession simulate(String sessionId);
+    void simulate(String sessionId);
 
-    GameSession getSession(String sessionId);
+    SessionDto getSession(String sessionId);
 
     SseEmitter subscribe(String sessionId);
 }
