@@ -11,6 +11,7 @@ import com.tictactoe.engine.exception.GameNotFoundException;
 import com.tictactoe.engine.entity.GameEntity;
 import com.tictactoe.engine.repository.GameJpaRepository;
 import com.tictactoe.engine.util.BoardUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -19,18 +20,24 @@ import java.util.*;
 public class GameServiceImpl implements GameService {
 
     private static final int BOARD_SIZE = 9;
-
-    //TODO: To yml
-    private static final int[][] WINNING_LINES = {
-            {0, 1, 2}, {3, 4, 5}, {6, 7, 8},
-            {0, 3, 6}, {1, 4, 7}, {2, 5, 8},
-            {0, 4, 8}, {2, 4, 6}
-    };
+    private static final String DEFAULT_WINNING_LINES =
+            "0,1,2;3,4,5;6,7,8;0,3,6;1,4,7;2,5,8;0,4,8;2,4,6";
 
     private final GameJpaRepository gameRepository;
+    private final int[][] winningLines;
 
-    public GameServiceImpl(GameJpaRepository gameRepository) {
+    public GameServiceImpl(GameJpaRepository gameRepository,
+                            @Value("${game.winning-lines:" + DEFAULT_WINNING_LINES + "}") String winningLines) {
         this.gameRepository = gameRepository;
+        this.winningLines = parseWinningLines(winningLines);
+    }
+
+    private static int[][] parseWinningLines(String config) {
+        return Arrays.stream(config.split(";"))
+                .map(line -> Arrays.stream(line.split(","))
+                        .mapToInt(Integer::parseInt)
+                        .toArray())
+                .toArray(int[][]::new);
     }
 
     @Override
@@ -127,7 +134,7 @@ public class GameServiceImpl implements GameService {
 
     private boolean isWin(List<String> board, Symbol symbol) {
         String mark = symbol.name();
-        for (int[] line : WINNING_LINES) {
+        for (int[] line : winningLines) {
             if (mark.equals(board.get(line[0]))
                     && mark.equals(board.get(line[1]))
                     && mark.equals(board.get(line[2]))) {

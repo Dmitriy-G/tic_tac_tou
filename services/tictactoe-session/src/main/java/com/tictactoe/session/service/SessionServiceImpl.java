@@ -17,6 +17,7 @@ import com.tictactoe.session.sse.SseEmitterRegistry;
 import com.tictactoe.session.strategy.MoveStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -25,35 +26,32 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Drives an automated game end-to-end: creates the game at the engine, then alternates X/O moves
- * (each move's cell chosen by the {@link MoveStrategy} configured for that symbol) until the
- * engine reports a terminal status, publishing an SSE event after every move.
- */
 @Service
 public class SessionServiceImpl implements SessionService {
 
     private static final Logger log = LoggerFactory.getLogger(SessionServiceImpl.class);
 
-    private static final int MAX_MOVES = 9;
-    private static final int ERROR_COUNTS_THRESHOLD = 10;
+    private static final int SUCCESS_STEP_THRESHOLD = 9;
 
     private final GameEngineClient gameEngineClient;
     private final SessionJpaRepository sessionRepository;
     private final SimulationJpaRepository simulationRepository;
     private final SseEmitterRegistry emitterRegistry;
     private final MoveStrategyResolver moveStrategyResolver;
+    private final int errorCountsThreshold;
 
     public SessionServiceImpl(GameEngineClient gameEngineClient,
                               SessionJpaRepository sessionRepository,
                               SimulationJpaRepository simulationRepository,
                               SseEmitterRegistry emitterRegistry,
-                              MoveStrategyResolver moveStrategyResolver) {
+                              MoveStrategyResolver moveStrategyResolver,
+                              @Value("${simulation.error-counts-threshold:10}") int errorCountsThreshold) {
         this.gameEngineClient = gameEngineClient;
         this.sessionRepository = sessionRepository;
         this.simulationRepository = simulationRepository;
         this.emitterRegistry = emitterRegistry;
         this.moveStrategyResolver = moveStrategyResolver;
+        this.errorCountsThreshold = errorCountsThreshold;
     }
 
     @Override
@@ -69,6 +67,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public void simulate(String sessionId) {
+
         SimulationEntity simulation = new SimulationEntity();
 
         UUID simulationId = UUID.randomUUID();
@@ -105,7 +104,7 @@ public class SessionServiceImpl implements SessionService {
             }
             List<String> board = created.board();
 
-            for (int moveNumber = 1; moveNumber <= MAX_MOVES; ) {
+            for (int moveNumber = 1; moveNumber <= SUCCESS_STEP_THRESHOLD; ) {
 
                 String symbol = moveNumber % 2 == 1 ? "X" : "O";
                 MoveStrategy strategy = moveStrategyResolver.resolve(symbol);
@@ -129,7 +128,7 @@ public class SessionServiceImpl implements SessionService {
                 // increment counter
                 if (!StepStatus.CORRECT_STEP.equals(response.stepStatus())) {
                     errorsCount++;
-                    if (ERROR_COUNTS_THRESHOLD < errorsCount) {
+                    if (errorCountsThreshold < errorsCount) {
                         gameState = GameState.FAILED;
                     }
                 } else {
