@@ -29,7 +29,7 @@ services, no NoSQL store, no Testcontainers for tests).
   `CLAUDE.md`), or move history (same reasoning — the engine already owns move history).
 - **`session_db.simulations (id, session_id, errors_count, started_at, finished_at, status)`**
   captures the durable outcome of each `/simulate` run — an audit trail distinct from a session's
-  live, in-flight status. `SessionServiceImpl` writes a row when a run starts and updates it with
+  live, in-flight status. `SessionService` writes a row when a run starts and updates it with
   the terminal status when the run ends or fails.
 - A session's *live* status and move history while a simulation is actively running are
   necessarily process-local (there is nowhere in the schema above for them, by design) and are

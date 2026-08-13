@@ -62,7 +62,7 @@ OpenAPI JSON: `http://localhost:8082/v3/api-docs`
 `session_db` (own PostgreSQL database, never shared with the engine) holds two tables, both managed by Flyway (`src/main/resources/db/migration/V1__create_sessions_and_simulations_tables.sql`):
 
 - `sessions (id UUID)` — a durable identity/anchor row created once per session. It intentionally does **not** store `gameId` (identical to `id` — `sessionId` **is** `gameId`), the board (the engine's authoritative copy is never duplicated here), or move history (would duplicate history the engine already owns — see the root `CLAUDE.md` anti-patterns).
-- `simulations (id UUID, session_id UUID FK -> sessions, errors_count INT, started_at TIMESTAMP, finished_at TIMESTAMP, status VARCHAR)` — one row per `/simulate` run, the durable audit trail of run outcomes. `SessionServiceImpl` writes a row when a simulation starts and updates it with the terminal status when the run ends.
+- `simulations (id UUID, session_id UUID FK -> sessions, errors_count INT, started_at TIMESTAMP, finished_at TIMESTAMP, status VARCHAR)` — one row per `/simulate` run, the durable audit trail of run outcomes. `SessionService` writes a row when a simulation starts and updates it with the terminal status when the run ends.
 
 A session's *live*, in-flight `status`/move history while a simulation is actually running is process-local state, kept in memory by `PostgresSessionRepository` alongside the persisted identity row — it is not written to `session_db` (see the class Javadoc). On a fresh JVM (e.g. after a restart) `GET /sessions/{id}` reconstructs status from the latest `simulations` row instead.
 
