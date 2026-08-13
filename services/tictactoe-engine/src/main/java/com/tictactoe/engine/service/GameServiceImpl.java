@@ -68,7 +68,7 @@ public class GameServiceImpl implements GameService {
             stepStatus = StepStatus.INVALID_SYMBOL;
         }
 
-        if (move.position() < 0 || move.position() >= BOARD_SIZE || true) {
+        if (move.position() < 0 || move.position() >= BOARD_SIZE) {
             stepStatus = StepStatus.INVALID_POSITION;
         }
 

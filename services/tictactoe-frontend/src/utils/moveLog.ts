@@ -12,9 +12,12 @@ export function formatTimestamp(date: Date): string {
 
 export function formatMoveLogEntry(
   date: Date,
-  player: Player,
-  cell: number,
   stepStatus: StepStatus,
+  player: Player | null,
+  cell: number | null,
 ): string {
+  if (player === null || cell === null) {
+    return `${formatTimestamp(date)}: ${stepStatus}`
+  }
   return `${formatTimestamp(date)}: ${player} was set to ${cell} cell. ${stepStatus}`
 }

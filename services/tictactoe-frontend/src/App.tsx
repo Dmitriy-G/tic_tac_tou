@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Board from './components/Board'
 import MoveLog from './components/MoveLog'
 import { createSession, startSimulation, subscribeToSession } from './services/gameApiService'
-import { calculateWinner, createEmptyBoard, findChangedIndex } from './utils/logic'
+import { calculateWinner, createEmptyBoard, findChangedIndex, normalizeBoard } from './utils/logic'
 import { formatMoveLogEntry } from './utils/moveLog'
 import type { BoardState, Player, SessionStatus } from './utils/types'
 import './styles/App.css'
@@ -44,19 +44,18 @@ function App() {
       eventSourceRef.current = subscribeToSession(
         currentSessionId,
         (event) => {
-          const changedIndex = findChangedIndex(boardRef.current, event.board)
-          boardRef.current = event.board
+          const normalizedBoard = normalizeBoard(event.board)
+          const changedIndex = findChangedIndex(boardRef.current, normalizedBoard)
+          boardRef.current = normalizedBoard
 
-          setSquares(event.board)
+          setSquares(normalizedBoard)
           setStatus(event.winner ?? 'IN_PROGRESS')
 
-          if (changedIndex !== null) {
-            const player = event.board[changedIndex] as Player
-            setLogEntries((entries) => [
-              ...entries,
-              formatMoveLogEntry(new Date(), player, changedIndex + 1, event.stepStatus),
-            ])
-          }
+          const player = changedIndex !== null ? (normalizedBoard[changedIndex] as Player) : null
+          setLogEntries((entries) => [
+            ...entries,
+            formatMoveLogEntry(new Date(), event.stepStatus, player, changedIndex !== null ? changedIndex + 1 : null),
+          ])
 
           if (event.winner !== null) {
             setIsSimulating(false)
@@ -64,9 +63,9 @@ function App() {
           }
         },
         () => {
-          setError('Lost connection to the simulation stream.')
-          setIsSimulating(false)
           eventSourceRef.current?.close()
+          setIsSimulating(false)
+          setStatus((current) => (current === 'IN_PROGRESS' ? 'FAILED' : current))
         },
       )
 

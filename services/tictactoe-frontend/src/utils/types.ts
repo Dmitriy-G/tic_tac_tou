@@ -35,7 +35,7 @@ export interface GameSession {
 
 export interface SessionEvent {
   sessionId: string
-  board: SquareValue[]
+  board: string[]
   stepStatus: StepStatus
   winner: GameOutcome | null
 }

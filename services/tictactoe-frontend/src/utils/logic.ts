@@ -17,6 +17,10 @@ export function createEmptyBoard(): BoardState {
   return Array<null>(BOARD_SIZE).fill(null)
 }
 
+export function normalizeBoard(board: string[]): BoardState {
+  return board.map((cell) => (cell === 'X' || cell === 'O' ? cell : null))
+}
+
 export function calculateWinner(squares: BoardState): WinResult | null {
   for (const line of WINNING_LINES) {
     const [a, b, c] = line
