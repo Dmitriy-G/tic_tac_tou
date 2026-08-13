@@ -25,7 +25,7 @@ public class SseEmitterRegistry {
 
     public void publish(String sessionId, SessionEvent event) {
         SseEmitter emitter = emitters.get(sessionId);
-        String eventName = "simulate";
+        String eventName = "update";
         if (emitter == null) {
             //TODO: logging
             return;

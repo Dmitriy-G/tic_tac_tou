@@ -11,7 +11,6 @@ function App() {
   const [sessionId, setSessionId] = useState('')
   const [squares, setSquares] = useState<BoardState>(createEmptyBoard())
   const [status, setStatus] = useState<SessionStatus>('CREATED')
-  const [winner, setWinner] = useState<Player | null>(null)
   const [isSimulating, setIsSimulating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [logEntries, setLogEntries] = useState<string[]>([])
@@ -19,6 +18,7 @@ function App() {
   const boardRef = useRef<BoardState>(createEmptyBoard())
 
   const winningLine = useMemo(() => calculateWinner(squares)?.line ?? null, [squares])
+  const winnerSymbol: Player | null = useMemo(() => calculateWinner(squares)?.winner ?? null, [squares])
 
   useEffect(() => {
     return () => eventSourceRef.current?.close()
@@ -26,7 +26,7 @@ function App() {
 
   async function handleStartSimulation() {
     setError(null)
-    setWinner(null)
+    setStatus('IN_PROGRESS')
     setIsSimulating(true)
     setLogEntries([])
     boardRef.current = createEmptyBoard()
@@ -48,18 +48,17 @@ function App() {
           boardRef.current = event.board
 
           setSquares(event.board)
-          setStatus(event.status)
-          setWinner(event.winner)
+          setStatus(event.winner ?? 'IN_PROGRESS')
 
           if (changedIndex !== null) {
             const player = event.board[changedIndex] as Player
             setLogEntries((entries) => [
               ...entries,
-              formatMoveLogEntry(new Date(), player, changedIndex + 1, event.status),
+              formatMoveLogEntry(new Date(), player, changedIndex + 1, event.stepStatus),
             ])
           }
 
-          if (event.status === 'WIN' || event.status === 'DRAW') {
+          if (event.winner !== null) {
             setIsSimulating(false)
             eventSourceRef.current?.close()
           }
@@ -79,13 +78,17 @@ function App() {
   }
 
   const statusText =
-    status === 'WIN'
-      ? `Winner: ${winner ?? '?'}`
+    status === 'X_WON' || status === 'O_WON'
+      ? `Winner: ${winnerSymbol ?? '?'}`
       : status === 'DRAW'
         ? "It's a draw!"
-        : status === 'IN_PROGRESS'
-          ? 'Simulation in progress...'
-          : 'Press "Start Simulation" to watch a game.'
+        : status === 'FAILED'
+          ? 'Simulation failed.'
+          : status === 'CANCELLED'
+            ? 'Simulation cancelled.'
+            : status === 'IN_PROGRESS'
+              ? 'Simulation in progress...'
+              : 'Press "Start Simulation" to watch a game.'
 
   return (
     <main className="app">

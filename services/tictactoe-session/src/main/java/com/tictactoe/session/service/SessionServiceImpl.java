@@ -36,6 +36,7 @@ public class SessionServiceImpl implements SessionService {
     private static final Logger log = LoggerFactory.getLogger(SessionServiceImpl.class);
 
     private static final int MAX_MOVES = 9;
+    private static final int ERROR_COUNTS_THRESHOLD = 10;
 
     private final GameEngineClient gameEngineClient;
     private final SessionJpaRepository sessionRepository;
@@ -44,10 +45,10 @@ public class SessionServiceImpl implements SessionService {
     private final MoveStrategyResolver moveStrategyResolver;
 
     public SessionServiceImpl(GameEngineClient gameEngineClient,
-                               SessionJpaRepository sessionRepository,
-                               SimulationJpaRepository simulationRepository,
-                               SseEmitterRegistry emitterRegistry,
-                               MoveStrategyResolver moveStrategyResolver) {
+                              SessionJpaRepository sessionRepository,
+                              SimulationJpaRepository simulationRepository,
+                              SseEmitterRegistry emitterRegistry,
+                              MoveStrategyResolver moveStrategyResolver) {
         this.gameEngineClient = gameEngineClient;
         this.sessionRepository = sessionRepository;
         this.simulationRepository = simulationRepository;
@@ -78,7 +79,7 @@ public class SessionServiceImpl implements SessionService {
 
         simulationRepository.save(simulation);
 
-        Thread.ofVirtual().start(() -> runSimulation(simulationId.toString()));
+        Thread.ofVirtual().start(() -> runSimulation(sessionId, simulationId.toString()));
     }
 
     @Override
@@ -93,7 +94,7 @@ public class SessionServiceImpl implements SessionService {
         return emitterRegistry.register(sessionId);
     }
 
-    private void runSimulation(String simulationId) {
+    private void runSimulation(String sessionId, String simulationId) {
 
         int errorsCount = 0;
 
@@ -104,7 +105,7 @@ public class SessionServiceImpl implements SessionService {
             }
             List<String> board = created.board();
 
-            for (int moveNumber = 1; moveNumber <= MAX_MOVES;) {
+            for (int moveNumber = 1; moveNumber <= MAX_MOVES; ) {
 
                 String symbol = moveNumber % 2 == 1 ? "X" : "O";
                 MoveStrategy strategy = moveStrategyResolver.resolve(symbol);
@@ -113,34 +114,42 @@ public class SessionServiceImpl implements SessionService {
                 ApplyMoveResponse response = gameEngineClient.move(simulationId, symbol, position);
 
                 board = response.board();
+                GameState gameState = response.gameState();
+
+                // publish sse
+                emitterRegistry.publish(sessionId, new SessionEvent(
+                        sessionId,
+                        new ArrayList<>(board),
+                        response.stepStatus(),
+                        gameState != GameState.IN_PROGRESS ? gameState.toString() : null));
 
                 log.info("move={} symbol={} position={} status={}",
-                         moveNumber, symbol, position, response.gameState());
+                        moveNumber, symbol, position, gameState);
 
                 // increment counter
-                if (!StepStatus.SUCCESS.equals(response.stepStatus())) {
+                if (!StepStatus.CORRECT_STEP.equals(response.stepStatus())) {
                     errorsCount++;
+                    if (ERROR_COUNTS_THRESHOLD < errorsCount) {
+                        gameState = GameState.FAILED;
+                    }
                 } else {
                     moveNumber++;
-                    // publish sse
-                    emitterRegistry.publish(simulationId, new SessionEvent(simulationId, new ArrayList<>(board), response.gameState(),
-                            response.gameState() != GameState.IN_PROGRESS ? response.gameState().toString() : null));
                 }
 
                 // persist
                 SimulationEntity simulationEntity = simulationRepository.findById(UUID.fromString(simulationId)).orElseThrow();
                 simulationEntity.setErrorsCount(errorsCount);
-                simulationEntity.setStatus(response.gameState());
+                simulationEntity.setStatus(gameState);
                 simulationRepository.save(simulationEntity);
 
-                if (!GameState.IN_PROGRESS.equals(response.gameState())) {
+                if (!GameState.IN_PROGRESS.equals(gameState)) {
                     break;
                 }
             }
         } catch (RuntimeException e) {
             log.warn("simulation {} failed: {}", simulationId, e.getMessage());
         } finally {
-            emitterRegistry.complete(simulationId);
+            emitterRegistry.complete(sessionId);
         }
     }
 }

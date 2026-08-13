@@ -9,7 +9,17 @@ export interface WinResult {
   line: number[]
 }
 
-export type SessionStatus = 'CREATED' | 'IN_PROGRESS' | 'WIN' | 'DRAW'
+export type GameOutcome = 'X_WON' | 'O_WON' | 'DRAW' | 'FAILED' | 'CANCELLED'
+
+export type SessionStatus = 'CREATED' | 'IN_PROGRESS' | GameOutcome
+
+export type StepStatus =
+  | 'CORRECT_STEP'
+  | 'GAME_FINISHED'
+  | 'INVALID_SYMBOL'
+  | 'INVALID_POSITION'
+  | 'CELL_OCCUPIED'
+  | 'OUT_OF_TURN'
 
 export interface MoveRecord {
   player: Player
@@ -26,6 +36,6 @@ export interface GameSession {
 export interface SessionEvent {
   sessionId: string
   board: SquareValue[]
-  status: SessionStatus
-  winner: Player | null
+  stepStatus: StepStatus
+  winner: GameOutcome | null
 }

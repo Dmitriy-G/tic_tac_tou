@@ -58,7 +58,7 @@ public class GameServiceImpl implements GameService {
         GameResponse gameResponse = getGame(gameId);
 
         //TODO: Separate validation code
-        StepStatus stepStatus = StepStatus.SUCCESS;
+        StepStatus stepStatus = StepStatus.CORRECT_STEP;
 
         if (gameResponse.state() != GameState.IN_PROGRESS) {
             stepStatus = StepStatus.GAME_FINISHED;
@@ -67,11 +67,13 @@ public class GameServiceImpl implements GameService {
         if (move.symbol() == null) {
             stepStatus = StepStatus.INVALID_SYMBOL;
         }
-        if (move.position() < 0 || move.position() >= BOARD_SIZE) {
+
+        if (move.position() < 0 || move.position() >= BOARD_SIZE || true) {
             stepStatus = StepStatus.INVALID_POSITION;
         }
 
         List<String> board = new ArrayList<>(BoardUtils.convertToList(gameResponse.board()));
+
         if (!BoardUtils.EMPTY_CELL.equals(board.get(move.position()))) {
             stepStatus = StepStatus.CELL_OCCUPIED;
         }
@@ -80,7 +82,7 @@ public class GameServiceImpl implements GameService {
             stepStatus = StepStatus.OUT_OF_TURN;
         }
 
-        if (!StepStatus.SUCCESS.equals(stepStatus)) {
+        if (!StepStatus.CORRECT_STEP.equals(stepStatus)) {
             return new ApplyMoveResponse(board, gameResponse.state(), stepStatus, null);
         }
 
@@ -108,7 +110,7 @@ public class GameServiceImpl implements GameService {
 
         gameRepository.save(entity);
 
-        return new ApplyMoveResponse(board, gameState, StepStatus.SUCCESS, winner);
+        return new ApplyMoveResponse(board, gameState, StepStatus.CORRECT_STEP, winner);
 
     }
 

@@ -1,4 +1,4 @@
-import type { Player, SessionStatus } from './types'
+import type { Player, StepStatus } from './types'
 
 function pad(value: number): string {
   return value.toString().padStart(2, '0')
@@ -14,7 +14,7 @@ export function formatMoveLogEntry(
   date: Date,
   player: Player,
   cell: number,
-  status: SessionStatus,
+  stepStatus: StepStatus,
 ): string {
-  return `${formatTimestamp(date)}: ${player} was set to ${cell} cell. ${status}`
+  return `${formatTimestamp(date)}: ${player} was set to ${cell} cell. ${stepStatus}`
 }

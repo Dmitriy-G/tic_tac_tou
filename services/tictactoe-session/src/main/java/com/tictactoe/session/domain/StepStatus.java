@@ -1,7 +1,7 @@
 package com.tictactoe.session.domain;
 
 public enum StepStatus {
-    SUCCESS,
+    CORRECT_STEP,
     GAME_FINISHED,
     INVALID_SYMBOL,
     INVALID_POSITION,
