@@ -32,7 +32,7 @@ public class SimulationStep {
 
         MoveResponse response = gameEngineClient.move(simulationId, symbol, position);
 
-        eventPublisher.publishMove(sessionId, response);
+        eventPublisher.publishMove(sessionId, progress.moveNumber(), symbol, position, response);
 
         log.info("move={} symbol={} position={} status={}",
                 progress.moveNumber(), symbol, position, response.gameState());

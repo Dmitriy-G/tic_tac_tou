@@ -21,21 +21,44 @@ export type StepStatus =
   | 'CELL_OCCUPIED'
   | 'OUT_OF_TURN'
 
-export interface MoveRecord {
-  player: Player
+export interface MoveHistoryEntry {
+  moveNumber: number
+  symbol: Player
   position: number
+  stepStatus: StepStatus
 }
 
-export interface GameSession {
+/** Mirrors the session service's SessionResponse — the full session view GET /sessions/{id}
+ * returns, sufficient on its own to rebuild the UI without the SSE stream. */
+export interface SessionResponse {
   sessionId: string
-  gameId: string
   status: SessionStatus
-  moveHistory: MoveRecord[]
+  board: string[]
+  moves: MoveHistoryEntry[]
+  winner: Player | null
+  errorCode: string | null
+  errorMessage: string | null
 }
+
+export type SessionEventType = 'MOVE' | 'COMPLETED' | 'FAILED'
 
 export interface SessionEvent {
   sessionId: string
-  board: string[]
-  stepStatus: StepStatus
+  type: SessionEventType
+  board: string[] | null
+  stepStatus: StepStatus | null
   winner: GameOutcome | null
+  errorCode: string | null
+  errorMessage: string | null
+  traceId: string | null
+}
+
+/** Mirrors the shared ErrorResponse both services return for a fault. */
+export interface ApiErrorBody {
+  timestamp?: string
+  status?: number
+  code?: string
+  message?: string
+  path?: string
+  traceId?: string
 }

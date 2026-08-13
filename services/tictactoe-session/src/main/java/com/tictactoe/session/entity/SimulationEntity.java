@@ -29,6 +29,20 @@ public class SimulationEntity {
     @Enumerated(EnumType.STRING)
     private GameState status;
 
+    /**
+     * Mirrors {@link #sessionId} while {@link #status} is {@code IN_PROGRESS}, null otherwise.
+     * The unique index {@code uq_simulation_running} on this column is what actually stops two
+     * concurrent simulations from starting for the same session — see V2 migration.
+     */
+    @Column(name = "running_session_id")
+    private UUID runningSessionId;
+
+    @Column(name = "error_code", length = 64)
+    private String errorCode;
+
+    @Column(name = "error_message", length = 1000)
+    private String errorMessage;
+
     public UUID getId() {
         return id;
     }
@@ -75,5 +89,29 @@ public class SimulationEntity {
 
     public void setStatus(GameState status) {
         this.status = status;
+    }
+
+    public UUID getRunningSessionId() {
+        return runningSessionId;
+    }
+
+    public void setRunningSessionId(UUID runningSessionId) {
+        this.runningSessionId = runningSessionId;
+    }
+
+    public String getErrorCode() {
+        return errorCode;
+    }
+
+    public void setErrorCode(String errorCode) {
+        this.errorCode = errorCode;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    public void setErrorMessage(String errorMessage) {
+        this.errorMessage = errorMessage;
     }
 }

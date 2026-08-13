@@ -21,6 +21,9 @@ game-engine:
   base-url: ${ENGINE_BASE_URL:http://localhost:8081}
   connect-timeout-ms: ${ENGINE_CONNECT_TIMEOUT_MS:2000}
   read-timeout-ms: ${ENGINE_READ_TIMEOUT_MS:3000}
+  retry:
+    max-attempts: ${ENGINE_RETRY_MAX_ATTEMPTS:3}
+    initial-backoff-ms: ${ENGINE_RETRY_INITIAL_BACKOFF_MS:200}
 
 simulation:
   move-delay-ms: ${SIMULATION_MOVE_DELAY_MS:500}

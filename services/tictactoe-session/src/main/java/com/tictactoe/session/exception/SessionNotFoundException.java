@@ -1,8 +1,11 @@
 package com.tictactoe.session.exception;
 
-public class SessionNotFoundException extends RuntimeException {
+import com.tictactoe.common.error.ErrorCode;
+import com.tictactoe.common.error.NotFoundException;
+
+public class SessionNotFoundException extends NotFoundException {
 
     public SessionNotFoundException(String sessionId) {
-        super("Session not found: " + sessionId);
+        super(ErrorCode.SESSION_NOT_FOUND, "Session not found: " + sessionId);
     }
 }

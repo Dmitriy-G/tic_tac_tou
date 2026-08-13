@@ -61,6 +61,11 @@
   font-size: 0.95rem;
 }
 
+.reconnecting {
+  color: #d4a72c;
+  font-size: 0.95rem;
+}
+
 .log {
   width: 20rem;
   max-height: 28rem;

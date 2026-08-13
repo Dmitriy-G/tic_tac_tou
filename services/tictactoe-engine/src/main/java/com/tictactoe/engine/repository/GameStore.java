@@ -1,6 +1,8 @@
 package com.tictactoe.engine.repository;
 
 import com.tictactoe.common.domain.GameState;
+import com.tictactoe.common.error.BadRequestException;
+import com.tictactoe.common.error.ErrorCode;
 import com.tictactoe.engine.entity.GameEntity;
 import com.tictactoe.engine.exception.GameNotFoundException;
 import com.tictactoe.engine.util.BoardUtils;
@@ -23,17 +25,25 @@ public class GameStore {
     }
 
     public Game load(String gameId) {
-        GameEntity entity = gameRepository.findById(UUID.fromString(gameId))
+        GameEntity entity = gameRepository.findById(toUuid(gameId))
                 .orElseThrow(() -> new GameNotFoundException(gameId));
         return new Game(entity);
     }
 
     public void create(String gameId, List<String> board) {
         GameEntity entity = new GameEntity();
-        entity.setId(UUID.fromString(gameId));
+        entity.setId(toUuid(gameId));
         entity.setBoard(BoardUtils.convertToString(board));
         entity.setState(GameState.IN_PROGRESS);
         gameRepository.save(entity);
+    }
+
+    private static UUID toUuid(String gameId) {
+        try {
+            return UUID.fromString(gameId);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException(ErrorCode.INVALID_GAME_ID, "Malformed game id: " + gameId, e);
+        }
     }
 
     /**

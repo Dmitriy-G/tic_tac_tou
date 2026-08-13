@@ -55,4 +55,14 @@ The `games` table lives in its own `engine_db` PostgreSQL database (never shared
 
 ## Status
 
-`GameService` is orchestration only: it loads the game through `GameStore`, delegates validation to `MoveValidator` (which in turn asks `TurnPolicy` whose move it is), delegates outcome resolution to `GameOutcomeEvaluator` (win checked before fullness, so a win on the 9th cell beats a draw), and persists through `GameStore`. `WinningLines` (`config/`) parses and validates `game.winning-lines` at startup, failing context startup with `IllegalStateException` on a malformed property instead of blowing up mid-game. `POST /games` accepts an optional `{"gameId": "..."}` body so the session service can force `gameId == sessionId`; when omitted, the engine generates one. `GameExceptionHandler` (`@RestControllerAdvice`) maps `GameNotFoundException` to `404` and `InvalidMoveException` to `400`/`409` (per its `code`) using the error shape from the root `CLAUDE.md`.
+`GameService` is orchestration only: it loads the game through `GameStore`, delegates validation to `MoveValidator` (which in turn asks `TurnPolicy` whose move it is), delegates outcome resolution to `GameOutcomeEvaluator` (win checked before fullness, so a win on the 9th cell beats a draw), and persists through `GameStore`. `WinningLines` (`config/`) parses and validates `game.winning-lines` at startup, failing context startup with `IllegalStateException` on a malformed property instead of blowing up mid-game. `POST /games` accepts an optional `{"gameId": "..."}` body so the session service can force `gameId == sessionId`; when omitted, the engine generates one.
+
+## Error handling
+
+`GameExceptionHandler` (`@RestControllerAdvice`) extends `BaseGlobalExceptionHandler` from `tictactoe-common` — see the root README's error-code table and `docs/adr/0003-error-channels.md` / `docs/adr/0004-downstream-status-mapping.md`. Rule outcomes (`StepStatus` in a `200` `MoveResponse` — occupied cell, out-of-turn, finished game, etc.) never go through this handler; only faults do:
+
+- `GameNotFoundException` (extends `NotFoundException`) → `404 GAME_NOT_FOUND`.
+- A non-UUID `gameId` path variable → `400 INVALID_GAME_ID` (caught at `GameStore`, the point where `UUID.fromString` actually throws).
+- `MoveRequest` validation (`@NotNull symbol`, `@Min(0) @Max(8) position`) → `400 VALIDATION_ERROR` with a `fieldErrors` entry per failed constraint.
+- Everything else inherited from `BaseGlobalExceptionHandler` (malformed JSON, wrong HTTP method, repository failure, unexpected exception) with no engine-specific override needed.
+- `CorrelationIdFilter` reads/generates `X-Correlation-Id`, puts it in MDC as `traceId`, and echoes it on the response; every error body's `traceId` field comes from there.

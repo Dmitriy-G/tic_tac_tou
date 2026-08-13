@@ -14,3 +14,7 @@ spring:
 
 simulation:
   move-delay-ms: 0
+
+game-engine:
+  retry:
+    initial-backoff-ms: 1
