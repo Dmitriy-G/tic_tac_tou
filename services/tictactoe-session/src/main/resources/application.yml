@@ -24,7 +24,6 @@ game-engine:
 
 simulation:
   move-delay-ms: ${SIMULATION_MOVE_DELAY_MS:500}
-  error-counts-threshold: ${SIMULATION_ERROR_COUNTS_THRESHOLD:10}
   strategy:
     x: ${SIMULATION_STRATEGY_X:SIMPLE}
     o: ${SIMULATION_STRATEGY_O:SIMPLE}

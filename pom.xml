@@ -32,5 +32,8 @@
         <postgresql.version>42.7.3</postgresql.version>
         <flyway.version>10.10.0</flyway.version>
         <h2.version>2.2.224</h2.version>
+        <!-- Mockito's bundled Byte Buddy does not yet recognise newer JDKs; this only affects
+             the test JVM and has no effect on production behaviour. -->
+        <argLine>-Dnet.bytebuddy.experimental=true</argLine>
     </properties>
 </project>
