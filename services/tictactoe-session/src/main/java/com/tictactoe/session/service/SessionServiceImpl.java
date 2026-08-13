@@ -140,6 +140,7 @@ public class SessionServiceImpl implements SessionService {
                 SimulationEntity simulationEntity = simulationRepository.findById(UUID.fromString(simulationId)).orElseThrow();
                 simulationEntity.setErrorsCount(errorsCount);
                 simulationEntity.setStatus(gameState);
+                simulationEntity.setFinishedAt(GameState.IN_PROGRESS.equals(gameState) ? null : Instant.now());
                 simulationRepository.save(simulationEntity);
 
                 if (!GameState.IN_PROGRESS.equals(gameState)) {

@@ -29,5 +29,8 @@
         <springdoc.version>2.6.0</springdoc.version>
         <resilience4j.version>2.2.0</resilience4j.version>
         <logstash-logback-encoder.version>7.4</logstash-logback-encoder.version>
+        <postgresql.version>42.7.3</postgresql.version>
+        <flyway.version>10.10.0</flyway.version>
+        <h2.version>2.2.224</h2.version>
     </properties>
 </project>
