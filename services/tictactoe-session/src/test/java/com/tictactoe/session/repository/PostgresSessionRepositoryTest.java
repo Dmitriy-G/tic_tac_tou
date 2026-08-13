@@ -1,14 +1,16 @@
 package com.tictactoe.session.repository;
 
 import com.tictactoe.session.SessionApplication;
-import com.tictactoe.session.domain.SimulationStatus;
+import com.tictactoe.session.domain.GameState;
+import com.tictactoe.session.entity.SessionEntity;
+import com.tictactoe.session.entity.SimulationEntity;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,55 +21,49 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PostgresSessionRepositoryTest {
 
     @Autowired
-    private SessionRepository sessionRepository;
+    private SessionJpaRepository sessionRepository;
 
     @Autowired
-    private SimulationRepository simulationRepository;
+    private SimulationJpaRepository simulationRepository;
 
     @Test
     void savesAndReloadsASessionIdentity() {
-        String sessionId = UUID.randomUUID().toString();
-        GameSession session = new GameSession();
-        session.setSessionId(sessionId);
-        session.setGameId(sessionId);
-        session.setStatus(SimulationStatus.CREATED);
-        session.setMoveHistory(new ArrayList<>());
+        UUID sessionId = UUID.randomUUID();
+        SessionEntity session = new SessionEntity();
+        session.setId(sessionId);
 
         sessionRepository.save(session);
-        Optional<GameSession> reloaded = sessionRepository.findById(sessionId);
+        Optional<SessionEntity> reloaded = sessionRepository.findById(sessionId);
 
         assertThat(reloaded).isPresent();
-        assertThat(reloaded.get().getSessionId()).isEqualTo(sessionId);
+        assertThat(reloaded.get().getId()).isEqualTo(sessionId);
     }
 
     @Test
     void returnsEmptyForUnknownSessionId() {
-        assertThat(sessionRepository.findById(UUID.randomUUID().toString())).isEmpty();
+        assertThat(sessionRepository.findById(UUID.randomUUID())).isEmpty();
     }
 
     @Test
-    void findsTheLatestSimulationForASession() {
-        String sessionId = UUID.randomUUID().toString();
-        GameSession session = new GameSession();
-        session.setSessionId(sessionId);
-        session.setGameId(sessionId);
-        session.setStatus(SimulationStatus.CREATED);
-        session.setMoveHistory(new ArrayList<>());
+    void findsSimulationsForASessionOrderedByStartedAtDesc() {
+        UUID sessionId = UUID.randomUUID();
+        SessionEntity session = new SessionEntity();
+        session.setId(sessionId);
         sessionRepository.save(session);
 
-        Simulation simulation = new Simulation();
-        simulation.setId(UUID.randomUUID().toString());
+        SimulationEntity simulation = new SimulationEntity();
+        simulation.setId(UUID.randomUUID());
         simulation.setSessionId(sessionId);
         simulation.setErrorsCount(0);
         simulation.setStartedAt(Instant.now());
         simulation.setFinishedAt(Instant.now());
-        simulation.setStatus(SimulationStatus.X_WON);
+        simulation.setStatus(GameState.X_WON);
         simulationRepository.save(simulation);
 
-        Optional<Simulation> latest = simulationRepository.findLatestBySessionId(sessionId);
+        List<SimulationEntity> found = simulationRepository.findBySessionIdOrderByStartedAtDesc(sessionId);
 
-        assertThat(latest).isPresent();
-        assertThat(latest.get().getSessionId()).isEqualTo(sessionId);
-        assertThat(latest.get().getStatus()).isEqualTo(SimulationStatus.X_WON);
+        assertThat(found).hasSize(1);
+        assertThat(found.getFirst().getSessionId()).isEqualTo(sessionId);
+        assertThat(found.getFirst().getStatus()).isEqualTo(GameState.X_WON);
     }
 }

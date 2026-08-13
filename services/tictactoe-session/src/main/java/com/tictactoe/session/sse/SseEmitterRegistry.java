@@ -14,29 +14,31 @@ public class SseEmitterRegistry {
 
     private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
 
-    public SseEmitter register(String sessionId) {
+    public SseEmitter register(String simulationId) {
         SseEmitter emitter = new SseEmitter(0L);
-        emitters.put(sessionId, emitter);
-        emitter.onCompletion(() -> emitters.remove(sessionId, emitter));
-        emitter.onTimeout(() -> emitters.remove(sessionId, emitter));
-        emitter.onError(throwable -> emitters.remove(sessionId, emitter));
+        emitters.put(simulationId, emitter);
+        emitter.onCompletion(() -> emitters.remove(simulationId, emitter));
+        emitter.onTimeout(() -> emitters.remove(simulationId, emitter));
+        emitter.onError(throwable -> emitters.remove(simulationId, emitter));
         return emitter;
     }
 
     public void publish(String sessionId, SessionEvent event) {
         SseEmitter emitter = emitters.get(sessionId);
+        String eventName = "simulate";
         if (emitter == null) {
+            //TODO: logging
             return;
         }
         try {
-            emitter.send(SseEmitter.event().name("update").data(event, MediaType.APPLICATION_JSON));
+            emitter.send(SseEmitter.event().name(eventName).data(event, MediaType.APPLICATION_JSON));
         } catch (IOException e) {
             emitters.remove(sessionId, emitter);
         }
     }
 
-    public void complete(String sessionId) {
-        SseEmitter emitter = emitters.remove(sessionId);
+    public void complete(String simulationId) {
+        SseEmitter emitter = emitters.remove(simulationId);
         if (emitter != null) {
             emitter.complete();
         }

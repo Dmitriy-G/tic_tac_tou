@@ -1,4 +1,4 @@
-package com.tictactoe.session.domain;
+package com.tictactoe.engine.domain;
 
 public enum StepStatus {
     SUCCESS,

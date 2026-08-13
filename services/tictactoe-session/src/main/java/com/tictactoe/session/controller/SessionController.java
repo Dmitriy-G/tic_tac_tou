@@ -1,8 +1,6 @@
 package com.tictactoe.session.controller;
 
-import com.tictactoe.session.dto.SessionDto;
-import com.tictactoe.session.exception.SessionNotFoundException;
-import com.tictactoe.session.exception.SimulationAlreadyRunningException;
+import com.tictactoe.session.dto.SessionResponse;
 import com.tictactoe.session.service.SessionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -10,7 +8,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,7 +31,7 @@ public class SessionController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create a session", description = "Creates a new game session, ready to be simulated.")
-    public SessionDto createSession() {
+    public SessionResponse createSession() {
         return sessionService.createSession();
     }
 
@@ -47,7 +44,7 @@ public class SessionController {
 
     @GetMapping("/{sessionId}")
     @Operation(summary = "Get session state", description = "Returns the current status and move history for a session.")
-    public SessionDto getSession(@Parameter(description = "Identifier of the session") @PathVariable String sessionId) {
+    public SessionResponse getSession(@Parameter(description = "Identifier of the session") @PathVariable String sessionId) {
         return sessionService.getSession(sessionId);
     }
 

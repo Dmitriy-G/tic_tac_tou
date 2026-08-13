@@ -1,6 +1,6 @@
-package com.tictactoe.session.repository;
+package com.tictactoe.session.entity;
 
-import com.tictactoe.session.domain.SimulationStatus;
+import com.tictactoe.session.domain.GameState;
 import jakarta.persistence.*;
 
 import java.time.Instant;
@@ -26,8 +26,8 @@ public class SimulationEntity {
     private Instant finishedAt;
 
     @Column(name = "status", nullable = false, length = 20)
-    @Enumerated(EnumType.ORDINAL)
-    private SimulationStatus status;
+    @Enumerated(EnumType.STRING)
+    private GameState status;
 
     public UUID getId() {
         return id;
@@ -69,11 +69,11 @@ public class SimulationEntity {
         this.finishedAt = finishedAt;
     }
 
-    public String getStatus() {
+    public GameState getStatus() {
         return status;
     }
 
-    public void setStatus(SimulationStatus status) {
+    public void setStatus(GameState status) {
         this.status = status;
     }
 }

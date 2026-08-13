@@ -2,7 +2,7 @@ package com.tictactoe.session.client;
 
 public interface GameEngineClient {
 
-    GameEngineResponse createGame(String gameId);
+    CreateGameResponse createGame(String gameId);
 
-    GameEngineResponse move(String gameId, String player, int position);
+    ApplyMoveResponse move(String gameId, String player, int position);
 }

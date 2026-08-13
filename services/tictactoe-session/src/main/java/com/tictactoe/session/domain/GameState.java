@@ -1,6 +1,7 @@
 package com.tictactoe.session.domain;
 
-public enum SimulationStatus {
+//TODO: Move to library
+public enum GameState {
     CREATED,
     IN_PROGRESS,
     X_WON,

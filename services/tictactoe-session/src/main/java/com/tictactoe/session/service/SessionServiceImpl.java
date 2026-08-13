@@ -1,16 +1,17 @@
 package com.tictactoe.session.service;
 
+import com.tictactoe.session.client.ApplyMoveResponse;
+import com.tictactoe.session.client.CreateGameResponse;
 import com.tictactoe.session.client.GameEngineClient;
-import com.tictactoe.session.client.GameEngineResponse;
 import com.tictactoe.session.config.MoveStrategyResolver;
 import com.tictactoe.session.domain.SessionEvent;
-import com.tictactoe.session.domain.SimulationStatus;
+import com.tictactoe.session.domain.GameState;
 import com.tictactoe.session.domain.StepStatus;
-import com.tictactoe.session.dto.SessionDto;
+import com.tictactoe.session.dto.SessionResponse;
 import com.tictactoe.session.exception.SessionNotFoundException;
-import com.tictactoe.session.repository.SessionEntity;
+import com.tictactoe.session.entity.SessionEntity;
 import com.tictactoe.session.repository.SessionJpaRepository;
-import com.tictactoe.session.repository.SimulationEntity;
+import com.tictactoe.session.entity.SimulationEntity;
 import com.tictactoe.session.repository.SimulationJpaRepository;
 import com.tictactoe.session.sse.SseEmitterRegistry;
 import com.tictactoe.session.strategy.MoveStrategy;
@@ -55,14 +56,14 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    public SessionDto createSession() {
+    public SessionResponse createSession() {
         UUID sessionId = UUID.randomUUID();
 
         SessionEntity session = new SessionEntity();
         session.setId(sessionId);
         sessionRepository.save(session);
 
-        return new SessionDto(sessionId.toString());
+        return new SessionResponse(sessionId.toString());
     }
 
     @Override
@@ -72,7 +73,7 @@ public class SessionServiceImpl implements SessionService {
         UUID simulationId = UUID.randomUUID();
         simulation.setId(simulationId);
         simulation.setSessionId(UUID.fromString(sessionId));
-        simulation.setStatus(SimulationStatus.IN_PROGRESS);
+        simulation.setStatus(GameState.IN_PROGRESS);
         simulation.setStartedAt(Instant.now());
 
         simulationRepository.save(simulation);
@@ -81,10 +82,9 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    public SessionDto getSession(String sessionId) {
-        //TODO: Mapstruct
-        return sessionRepository.findById(UUID.fromString(sessionId))
-                .orElseThrow(() -> new SessionNotFoundException(sessionId));
+    public SessionResponse getSession(String sessionId) {
+        return new SessionResponse(sessionRepository.findById(UUID.fromString(sessionId))
+                .orElseThrow(() -> new SessionNotFoundException(sessionId)).getId().toString());
     }
 
     @Override
@@ -98,41 +98,44 @@ public class SessionServiceImpl implements SessionService {
         int errorsCount = 0;
 
         try {
-            GameEngineResponse created = gameEngineClient.createGame(simulationId);
+            CreateGameResponse created = gameEngineClient.createGame(simulationId);
             if (created == null || created.board() == null) {
                 throw new IllegalStateException("Engine returned an incomplete response for game creation");
             }
             List<String> board = created.board();
 
-            for (int moveNumber = 1; moveNumber <= MAX_MOVES; moveNumber++) {
+            for (int moveNumber = 1; moveNumber <= MAX_MOVES;) {
 
                 String symbol = moveNumber % 2 == 1 ? "X" : "O";
                 MoveStrategy strategy = moveStrategyResolver.resolve(symbol);
                 int position = strategy.selectMove(board, symbol);
 
-                GameEngineResponse response = gameEngineClient.move(simulationId, symbol, position);
-                if (response == null || response.board() == null) {
-                    throw new IllegalStateException("Engine returned an incomplete response for move " + moveNumber);
-                }
+                ApplyMoveResponse response = gameEngineClient.move(simulationId, symbol, position);
+
+                board = response.board();
 
                 log.info("move={} symbol={} position={} status={}",
-                         moveNumber, symbol, position, response.simulationStatus());
+                         moveNumber, symbol, position, response.gameState());
 
-                emitterRegistry.publish(simulationId, new SessionEvent(simulationId, new ArrayList<>(board), response.simulationStatus(),
-                        response.simulationStatus() != SimulationStatus.IN_PROGRESS ? response.simulationStatus().toString() : null));
-
-                if (response.simulationStatus() != SimulationStatus.IN_PROGRESS) {
-                    break;
-                }
-
-                if (StepStatus.INCORRECT.equals(response.stepStatus())) {
+                // increment counter
+                if (!StepStatus.SUCCESS.equals(response.stepStatus())) {
                     errorsCount++;
+                } else {
+                    moveNumber++;
+                    // publish sse
+                    emitterRegistry.publish(simulationId, new SessionEvent(simulationId, new ArrayList<>(board), response.gameState(),
+                            response.gameState() != GameState.IN_PROGRESS ? response.gameState().toString() : null));
                 }
 
+                // persist
                 SimulationEntity simulationEntity = simulationRepository.findById(UUID.fromString(simulationId)).orElseThrow();
                 simulationEntity.setErrorsCount(errorsCount);
-                simulationEntity.setStatus(response.simulationStatus());
+                simulationEntity.setStatus(response.gameState());
                 simulationRepository.save(simulationEntity);
+
+                if (!GameState.IN_PROGRESS.equals(response.gameState())) {
+                    break;
+                }
             }
         } catch (RuntimeException e) {
             log.warn("simulation {} failed: {}", simulationId, e.getMessage());

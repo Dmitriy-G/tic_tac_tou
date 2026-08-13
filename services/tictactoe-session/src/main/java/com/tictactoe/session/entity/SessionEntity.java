@@ -1,4 +1,4 @@
-package com.tictactoe.session.repository;
+package com.tictactoe.session.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

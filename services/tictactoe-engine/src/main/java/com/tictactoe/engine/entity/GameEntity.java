@@ -1,9 +1,7 @@
-package com.tictactoe.engine.repository;
+package com.tictactoe.engine.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.tictactoe.engine.domain.GameState;
+import jakarta.persistence.*;
 
 import java.util.UUID;
 
@@ -18,7 +16,8 @@ public class GameEntity {
     private String board;
 
     @Column(name = "state", nullable = false, length = 20)
-    private String state;
+    @Enumerated(EnumType.STRING)
+    private GameState state;
 
     public UUID getId() {
         return id;
@@ -36,11 +35,11 @@ public class GameEntity {
         this.board = board;
     }
 
-    public String getState() {
+    public GameState getState() {
         return state;
     }
 
-    public void setState(String state) {
+    public void setState(GameState state) {
         this.state = state;
     }
 }

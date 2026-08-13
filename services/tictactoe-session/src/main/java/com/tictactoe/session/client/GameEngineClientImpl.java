@@ -29,20 +29,20 @@ public class GameEngineClientImpl implements GameEngineClient {
     }
 
     @Override
-    public GameEngineResponse createGame(String gameId) {
+    public CreateGameResponse createGame(String gameId) {
         return restClient.post()
                 .uri("/games")
                 .body(new CreateGameRequestPayload(gameId))
                 .retrieve()
-                .body(GameEngineResponse.class);
+                .body(CreateGameResponse.class);
     }
 
     @Override
-    public GameEngineResponse move(String gameId, String player, int position) {
+    public ApplyMoveResponse move(String gameId, String player, int position) {
         return restClient.post()
                 .uri("/games/{gameId}/move", gameId)
                 .body(new MoveRequestPayload(player, position))
                 .retrieve()
-                .body(GameEngineResponse.class);
+                .body(ApplyMoveResponse.class);
     }
 }

@@ -1,8 +1,11 @@
 package com.tictactoe.engine.domain;
 
-public enum GameStatus {
+public enum GameState {
+    CREATED,
     IN_PROGRESS,
     X_WON,
     O_WON,
-    DRAW
+    DRAW,
+    FAILED,
+    CANCELLED
 }
