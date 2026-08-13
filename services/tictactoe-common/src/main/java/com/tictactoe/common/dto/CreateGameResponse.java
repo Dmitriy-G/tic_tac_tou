@@ -1,4 +1,4 @@
-package com.tictactoe.session.client;
+package com.tictactoe.common.dto;
 
 import java.util.List;
 

@@ -19,6 +19,7 @@
     <description>Aggregator for the distributed Tic Tac Toe assignment (engine + session services)</description>
 
     <modules>
+        <module>services/tictactoe-common</module>
         <module>services/tictactoe-engine</module>
         <module>services/tictactoe-session</module>
     </modules>

@@ -58,21 +58,24 @@ docker compose up --build
 ├── docker-compose.yml
 ├── README.md  CLAUDE.md
 ├── services/
+│   ├── tictactoe-common/
+│   │   ├── pom.xml  README.md          # no Dockerfile — not a runnable service
+│   │   └── src/main/java/com/tictactoe/common/
+│   │       ├── domain/       # GameState, Symbol, StepStatus — shared enums
+│   │       └── dto/          # CreateGameRequest/Response, MoveRequest, ApplyMoveResponse, GameResponse
 │   ├── tictactoe-engine/
 │   │   ├── pom.xml  Dockerfile  README.md
 │   │   └── src/main/java/com/tictactoe/engine/
 │   │       ├── EngineApplication.java
 │   │       ├── config/       # @ConfigurationProperties, beans
 │   │       ├── controller/   # REST only, no logic
-│   │       ├── domain/       # Board, GameStatus, Symbol, Game
-│   │       ├── dto/          # request/response records
 │   │       ├── exception/    # custom exceptions + @RestControllerAdvice
 │   │       ├── repository/   # JPA entities + PostgreSQL-backed store (engine_db)
 │   │       └── service/      # game rules
 │   ├── tictactoe-session/
 │   │   └── src/main/java/com/tictactoe/session/
 │   │       ├── SessionApplication.java
-│   │       ├── client/       # engine HTTP client + its DTOs
+│   │       ├── client/       # engine HTTP client (GameEngineClient), using tictactoe-common's DTOs
 │   │       ├── config/  controller/  domain/  dto/  exception/  repository/
 │   │       ├── service/      # session lifecycle, simulation runner
 │   │       ├── strategy/     # MoveStrategy implementations
@@ -85,7 +88,7 @@ docker compose up --build
     └── diagrams/                        # Mermaid .mmd — HLD + sequence
 ```
 
-Each Maven module contains **only** `pom.xml`, `Dockerfile`, `README.md`, `src/main/java`, `src/main/resources/application.yml`, `src/test/`. Nothing else.
+Each Maven module contains **only** `pom.xml`, `Dockerfile`, `README.md`, `src/main/java`, `src/main/resources/application.yml`, `src/test/`. Nothing else. `tictactoe-common` is the one exception — no `Dockerfile`, no `application.yml`, since it isn't a runnable service.
 
 ---
 
@@ -115,7 +118,7 @@ GET    /sessions/{sessionId}/events-> text/event-stream (SSE)
 POST   /sessions/{sessionId}/cancel-> 202
 ```
 
-`sessionId` **is** the `gameId` (single UUID, one session = one game). Keep the domain models separate per service anyway — the services must not share a domain class.
+`sessionId` **is** the `gameId` (single UUID, one session = one game). The `GameState`/`Symbol`/`StepStatus` enums and the engine's wire DTOs (request/response records for `/games`) live in the shared `tictactoe-common` module and are used as-is by both services — see "Shared library" below. Everything else stays separate: each service keeps its own JPA entities, its own session/simulation-specific domain types (e.g. `SessionEvent`), and its own persistence — **the services still never share a database, an entity, or business logic.**
 
 ### Error response — identical shape in both services
 
@@ -174,6 +177,25 @@ CREATED -> IN_PROGRESS -> {X_WON | O_WON | DRAW | FAILED | CANCELLED}
 - `Random` is **injected**, never `new Random()` inline. Tests supply a seeded instance.
 - Never pick from occupied cells; "no empty cells" is a normal loop exit, not an exception.
 - Configurable delay between moves (`simulation.move-delay-ms`, default 500) so the UI shows progression. **Tests set it to 0.**
+
+---
+
+## Shared library (`tictactoe-common`)
+
+A third Maven module, `services/tictactoe-common`, holds only what is byte-for-byte identical
+because it *is* the engine's HTTP wire contract: the `GameState`, `Symbol`, `StepStatus` enums and
+the `/games` request/response records (`CreateGameRequest`, `CreateGameResponse`, `MoveRequest`,
+`MoveResponse`, `GameResponse`). Both `tictactoe-engine` and `tictactoe-session` depend on it.
+
+Rules for this module:
+
+- Plain Java only — no Spring, no persistence, no business logic, no controllers. It must never
+  depend on either service.
+- It is not a runnable service: no `Dockerfile`, no `docker-compose` entry, no port.
+- Nothing else moves here. Session-only types (`SessionEvent`, `SessionResponse`), JPA entities,
+  and mappers stay private to their owning service, per the Storage section below. If a class
+  isn't part of the engine's wire contract, it doesn't belong in `tictactoe-common` — resist
+  growing it into a dumping ground for "shared-ish" code.
 
 ---
 

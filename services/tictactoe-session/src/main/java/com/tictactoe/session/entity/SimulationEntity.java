@@ -1,6 +1,6 @@
 package com.tictactoe.session.entity;
 
-import com.tictactoe.session.domain.GameState;
+import com.tictactoe.common.domain.GameState;
 import jakarta.persistence.*;
 
 import java.time.Instant;

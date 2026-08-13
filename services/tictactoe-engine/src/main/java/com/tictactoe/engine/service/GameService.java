@@ -1,9 +1,9 @@
 package com.tictactoe.engine.service;
 
-import com.tictactoe.engine.dto.ApplyMoveResponse;
-import com.tictactoe.engine.dto.CreateGameResponse;
-import com.tictactoe.engine.dto.GameResponse;
-import com.tictactoe.engine.dto.MoveRequest;
+import com.tictactoe.common.dto.MoveResponse;
+import com.tictactoe.common.dto.CreateGameResponse;
+import com.tictactoe.common.dto.GameResponse;
+import com.tictactoe.common.dto.MoveRequest;
 
 public interface GameService {
 
@@ -11,5 +11,5 @@ public interface GameService {
 
     GameResponse getGame(String gameId);
 
-    ApplyMoveResponse applyMove(String gameId, MoveRequest move);
+    MoveResponse applyMove(String gameId, MoveRequest move);
 }

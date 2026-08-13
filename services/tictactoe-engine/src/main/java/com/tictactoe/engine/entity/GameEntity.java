@@ -1,6 +1,6 @@
 package com.tictactoe.engine.entity;
 
-import com.tictactoe.engine.domain.GameState;
+import com.tictactoe.common.domain.GameState;
 import jakarta.persistence.*;
 
 import java.util.UUID;

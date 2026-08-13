@@ -1,12 +1,12 @@
 package com.tictactoe.engine.service;
 
-import com.tictactoe.engine.domain.GameState;
-import com.tictactoe.engine.domain.StepStatus;
-import com.tictactoe.engine.dto.ApplyMoveResponse;
-import com.tictactoe.engine.dto.CreateGameResponse;
-import com.tictactoe.engine.dto.GameResponse;
-import com.tictactoe.engine.domain.Symbol;
-import com.tictactoe.engine.dto.MoveRequest;
+import com.tictactoe.common.domain.GameState;
+import com.tictactoe.common.domain.StepStatus;
+import com.tictactoe.common.dto.MoveResponse;
+import com.tictactoe.common.dto.CreateGameResponse;
+import com.tictactoe.common.dto.GameResponse;
+import com.tictactoe.common.domain.Symbol;
+import com.tictactoe.common.dto.MoveRequest;
 import com.tictactoe.engine.exception.GameNotFoundException;
 import com.tictactoe.engine.entity.GameEntity;
 import com.tictactoe.engine.repository.GameJpaRepository;
@@ -54,7 +54,7 @@ public class GameServiceImpl implements GameService {
     }
 
     @Override
-    public ApplyMoveResponse applyMove(String gameId, MoveRequest move) {
+    public MoveResponse applyMove(String gameId, MoveRequest move) {
         GameResponse gameResponse = getGame(gameId);
 
         //TODO: Separate validation code
@@ -83,7 +83,7 @@ public class GameServiceImpl implements GameService {
         }
 
         if (!StepStatus.CORRECT_STEP.equals(stepStatus)) {
-            return new ApplyMoveResponse(board, gameResponse.state(), stepStatus, null);
+            return new MoveResponse(board, gameResponse.state(), stepStatus, null);
         }
 
         board.set(move.position(), move.symbol().name());
@@ -110,7 +110,7 @@ public class GameServiceImpl implements GameService {
 
         gameRepository.save(entity);
 
-        return new ApplyMoveResponse(board, gameState, StepStatus.CORRECT_STEP, winner);
+        return new MoveResponse(board, gameState, StepStatus.CORRECT_STEP, winner);
 
     }
 

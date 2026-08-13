@@ -1,6 +1,6 @@
 package com.tictactoe.engine.controller;
 
-import com.tictactoe.engine.dto.*;
+import com.tictactoe.common.dto.*;
 import com.tictactoe.engine.service.GameService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -39,7 +39,7 @@ public class GameController {
 
     @PostMapping("/{gameId}/move")
     @Operation(summary = "Apply a move", description = "Validates and applies a move for the given game, returning the updated board and status.")
-    public ApplyMoveResponse move(
+    public MoveResponse move(
             @Parameter(description = "Identifier of the game") @PathVariable String gameId,
             @RequestBody MoveRequest move) {
         return gameService.applyMove(gameId, move);

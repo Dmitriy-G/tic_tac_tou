@@ -1,6 +1,5 @@
-package com.tictactoe.session.domain;
+package com.tictactoe.common.domain;
 
-//TODO: Move to library
 public enum GameState {
     CREATED,
     IN_PROGRESS,

@@ -1,4 +1,4 @@
-package com.tictactoe.engine.domain;
+package com.tictactoe.common.domain;
 
 public enum StepStatus {
     CORRECT_STEP,

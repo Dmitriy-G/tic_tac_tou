@@ -1,7 +1,7 @@
 package com.tictactoe.engine.repository;
 
 import com.tictactoe.engine.EngineApplication;
-import com.tictactoe.engine.domain.GameState;
+import com.tictactoe.common.domain.GameState;
 import com.tictactoe.engine.entity.GameEntity;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -1,12 +1,12 @@
 package com.tictactoe.session.service;
 
-import com.tictactoe.session.client.ApplyMoveResponse;
-import com.tictactoe.session.client.CreateGameResponse;
+import com.tictactoe.common.dto.MoveResponse;
+import com.tictactoe.common.dto.CreateGameResponse;
 import com.tictactoe.session.client.GameEngineClient;
 import com.tictactoe.session.config.MoveStrategyResolver;
 import com.tictactoe.session.domain.SessionEvent;
-import com.tictactoe.session.domain.GameState;
-import com.tictactoe.session.domain.StepStatus;
+import com.tictactoe.common.domain.GameState;
+import com.tictactoe.common.domain.StepStatus;
 import com.tictactoe.session.dto.SessionResponse;
 import com.tictactoe.session.exception.SessionNotFoundException;
 import com.tictactoe.session.entity.SessionEntity;
@@ -111,7 +111,7 @@ public class SessionServiceImpl implements SessionService {
                 MoveStrategy strategy = moveStrategyResolver.resolve(symbol);
                 int position = strategy.selectMove(board, symbol);
 
-                ApplyMoveResponse response = gameEngineClient.move(simulationId, symbol, position);
+                MoveResponse response = gameEngineClient.move(simulationId, symbol, position);
 
                 board = response.board();
                 GameState gameState = response.gameState();

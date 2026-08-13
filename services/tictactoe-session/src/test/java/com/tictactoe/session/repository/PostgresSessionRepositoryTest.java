@@ -1,7 +1,7 @@
 package com.tictactoe.session.repository;
 
 import com.tictactoe.session.SessionApplication;
-import com.tictactoe.session.domain.GameState;
+import com.tictactoe.common.domain.GameState;
 import com.tictactoe.session.entity.SessionEntity;
 import com.tictactoe.session.entity.SimulationEntity;
 import org.junit.jupiter.api.Test;
