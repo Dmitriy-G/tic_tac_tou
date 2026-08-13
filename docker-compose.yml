@@ -61,16 +61,20 @@ services:
         condition: service_started
       session-db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q UP"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   tictactoe-frontend:
     build:
       context: services/tictactoe-frontend
     ports:
       - "5173:80"
-    environment:
-      VITE_SESSION_SERVICE_URL: http://localhost:8082
     depends_on:
-      - tictactoe-session
+      tictactoe-session:
+        condition: service_healthy
 
 volumes:
   engine-db-data:

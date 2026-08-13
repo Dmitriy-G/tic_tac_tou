@@ -31,6 +31,9 @@ simulation:
     x: ${SIMULATION_STRATEGY_X:SIMPLE}
     o: ${SIMULATION_STRATEGY_O:SIMPLE}
 
+sse:
+  heartbeat-interval-ms: ${SSE_HEARTBEAT_INTERVAL_MS:15000}
+
 management:
   endpoints:
     web:

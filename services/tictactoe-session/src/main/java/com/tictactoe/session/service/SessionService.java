@@ -55,9 +55,9 @@ public class SessionService {
         return toResponse(sessionId);
     }
 
-    public SseEmitter subscribe(String sessionId) {
+    public SseEmitter subscribe(String sessionId, String lastEventId) {
         getSession(sessionId); // existence check only; result intentionally discarded
-        return emitterRegistry.register(sessionId);
+        return emitterRegistry.register(sessionId, lastEventId);
     }
 
     private SessionResponse toResponse(String sessionId) {

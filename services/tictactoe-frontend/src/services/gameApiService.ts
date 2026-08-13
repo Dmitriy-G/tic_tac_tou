@@ -1,6 +1,6 @@
 import type { ApiErrorBody, SessionEvent, SessionResponse } from '../utils/types'
 
-const BASE_URL = (import.meta.env.VITE_SESSION_SERVICE_URL as string | undefined) ?? 'http://localhost:8082'
+const BASE_URL = '/api'
 
 export class ApiError extends Error {
   readonly status: number

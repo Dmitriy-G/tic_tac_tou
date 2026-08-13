@@ -22,6 +22,24 @@ See `CLAUDE.md` for the full API contract, domain rules, and conventions; `task.
 docker compose up --build
 ```
 
+Everything is reachable from one origin: **http://localhost:5173**. The frontend's nginx serves
+the built UI at `/` and reverse-proxies `/api/*` to the session service — there is no separate API
+host to configure, and no CORS layer exists anywhere (same origin doesn't need one). See
+`docs/adr/0005-edge-routing-no-gateway.md`.
+
+## Endpoints
+
+| Method | Path (via `:5173`, browser-facing) | Path (direct, for `curl`/Swagger) | Description |
+| --- | --- | --- | --- |
+| `POST` | `/api/sessions` | `tictactoe-session:8082/sessions` | Create a session |
+| `POST` | `/api/sessions/{id}/simulate` | `tictactoe-session:8082/sessions/{id}/simulate` | Start the automated simulation (async) |
+| `GET` | `/api/sessions/{id}` | `tictactoe-session:8082/sessions/{id}` | Full session view — status, board, moves, winner, error |
+| `GET` | `/api/sessions/{id}/events` | `tictactoe-session:8082/sessions/{id}/events` | SSE stream of board updates |
+| — | — | `tictactoe-engine:8081/games...` | Engine API — never called by the browser, only by the session service |
+
+The direct `:8081`/`:8082` ports stay published in `docker-compose.yml` for inspection and Swagger
+UI even though the UI itself never uses them — see the ADR's Decision item 3.
+
 ## Running each service individually
 
 The two Java services share a root `pom.xml` aggregator.

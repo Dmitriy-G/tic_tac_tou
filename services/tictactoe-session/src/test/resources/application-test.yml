@@ -18,3 +18,8 @@ simulation:
 game-engine:
   retry:
     initial-backoff-ms: 1
+
+sse:
+  # Long enough that the heartbeat's @Scheduled task never fires during a test run — avoids
+  # background-thread noise/flakiness without disabling @EnableScheduling itself.
+  heartbeat-interval-ms: 3600000

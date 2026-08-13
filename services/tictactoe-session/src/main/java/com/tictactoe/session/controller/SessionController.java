@@ -7,10 +7,11 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,7 +19,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequestMapping("/sessions")
-@CrossOrigin(origins = "http://localhost:5173")
 @Tag(name = "Sessions", description = "Session lifecycle and automated game simulation")
 public class SessionController {
 
@@ -50,7 +50,12 @@ public class SessionController {
 
     @GetMapping(value = "/{sessionId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "Subscribe to simulation events", description = "Server-Sent Events stream of board updates and status (in progress, win, or draw) for a session.")
-    public SseEmitter events(@Parameter(description = "Identifier of the session") @PathVariable String sessionId) {
-        return sessionService.subscribe(sessionId);
+    public ResponseEntity<SseEmitter> events(
+            @Parameter(description = "Identifier of the session") @PathVariable String sessionId,
+            @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId) {
+        return ResponseEntity.ok()
+                .header("X-Accel-Buffering", "no")
+                .header("Cache-Control", "no-cache")
+                .body(sessionService.subscribe(sessionId, lastEventId));
     }
 }

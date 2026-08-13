@@ -66,6 +66,49 @@ class SseEmitterRegistryTest {
         assertThatCode(() -> registry.publish("session-1", failureEvent())).doesNotThrowAnyException();
     }
 
+    @Test
+    void lateSubscriberWithNoLastEventIdGetsTheWholeBacklog() {
+        registry.publish("session-1", moveEvent());
+        registry.publish("session-1", moveEvent());
+
+        RecordingEmitter lateSubscriber = (RecordingEmitter) registry.register("session-1", null);
+
+        assertThat(lateSubscriber.sendCount.get()).isEqualTo(2);
+    }
+
+    @Test
+    void subscriberWithALastEventIdOnlyGetsEventsAfterIt() {
+        registry.publish("session-1", moveEvent()); // id 1
+        registry.publish("session-1", moveEvent()); // id 2
+        registry.publish("session-1", moveEvent()); // id 3
+
+        RecordingEmitter reconnecting = (RecordingEmitter) registry.register("session-1", "1");
+
+        assertThat(reconnecting.sendCount.get()).isEqualTo(2);
+    }
+
+    @Test
+    void aBrandNewSessionWithNoBacklogSendsNothingOnRegister() {
+        RecordingEmitter emitter = (RecordingEmitter) registry.register("session-1", null);
+
+        assertThat(emitter.sendCount.get()).isZero();
+    }
+
+    @Test
+    void heartbeatSendsACommentFrameToEverySubscriberAndReapsDeadOnes() {
+        RecordingEmitter healthy = (RecordingEmitter) registry.register("session-1");
+        RecordingEmitter dead = (RecordingEmitter) registry.register("session-1");
+        dead.failOnSend = true;
+
+        assertThatCode(registry::heartbeat).doesNotThrowAnyException();
+        assertThat(healthy.sendCount.get()).isEqualTo(1);
+
+        // The dead emitter was reaped: a subsequent publish only reaches the survivor.
+        healthy.sendCount.set(0);
+        registry.publish("session-1", moveEvent());
+        assertThat(healthy.sendCount.get()).isEqualTo(1);
+    }
+
     private static SessionEvent moveEvent() {
         return new SessionEvent("session-1", SessionEvent.EventType.MOVE,
                 List.of("X", "_", "_", "_", "_", "_", "_", "_", "_"), StepStatus.CORRECT_STEP, null, null, null, null);

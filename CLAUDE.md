@@ -325,6 +325,8 @@ Authentication/authorisation, API gateway, Eureka, Kafka or any message broker, 
 
 Each of these belongs in `docs/adr/` as a considered-and-rejected alternative with rationale — that scores better than implementing it. REST is a deliberate choice for this scope, not an omission. PostgreSQL (one instance per service, via Flyway-managed schemas) **is** in scope — see Storage above; don't reintroduce in-memory maps as the system of record for `games`, `sessions`, or `simulations`.
 
+"API gateway" above means a dedicated routing service/container — still out of scope. Putting the browser-facing API on the same origin as the UI does **not** need one: the frontend's own nginx (already serving the built assets) reverse-proxies `/api/*` to the session service, which is what removes CORS from application code entirely. See `docs/adr/0005-edge-routing-no-gateway.md`.
+
 ## Anti-patterns to avoid
 
 - HTTP client without explicit timeouts

@@ -23,6 +23,7 @@ Manages game session lifecycle and automates gameplay by generating moves for bo
 | `SIMULATION_STRATEGY_O` | `SIMPLE` | Move strategy for `O`: `SIMPLE` (random empty cell) or `ADVANCED` (not implemented yet) |
 | `ENGINE_RETRY_MAX_ATTEMPTS` | `3` | Max attempts (including the first) for a call to the engine, retried only when it fails with `ENGINE_UNAVAILABLE` |
 | `ENGINE_RETRY_INITIAL_BACKOFF_MS` | `200` | Base backoff between retries (Resilience4j exponential backoff with jitter) |
+| `SSE_HEARTBEAT_INTERVAL_MS` | `15000` | Interval between `:ping` SSE comment frames per subscriber — keeps idle timers (this service's, any reverse proxy's, the browser's) from expiring during a quiet stretch. Below the smallest timeout in the path; see `docs/adr/0005-edge-routing-no-gateway.md` |
 
 ## Running
 
