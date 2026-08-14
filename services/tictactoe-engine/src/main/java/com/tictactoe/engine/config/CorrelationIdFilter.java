@@ -11,11 +11,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.UUID;
 
-/**
- * Every log line for a request is greppable by {@code traceId}: reads {@value #HEADER} from the
- * caller, or generates one if absent, puts it in MDC, and echoes it back on the response so the
- * session service (and any client) can correlate its own logs with the engine's.
- */
 @Component
 public class CorrelationIdFilter extends OncePerRequestFilter {
 

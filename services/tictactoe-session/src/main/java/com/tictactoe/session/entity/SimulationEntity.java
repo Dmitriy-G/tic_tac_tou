@@ -29,11 +29,6 @@ public class SimulationEntity {
     @Enumerated(EnumType.STRING)
     private GameState status;
 
-    /**
-     * Mirrors {@link #sessionId} while {@link #status} is {@code IN_PROGRESS}, null otherwise.
-     * The unique index {@code uq_simulation_running} on this column is what actually stops two
-     * concurrent simulations from starting for the same session — see V2 migration.
-     */
     @Column(name = "running_session_id")
     private UUID runningSessionId;
 

@@ -14,14 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * The session's board and move history, live for as long as the process runs. Deliberately not
- * persisted — see the Storage section in the root CLAUDE.md — so it is mutated only through
- * {@link Map#compute}, never a plain get-then-put, to keep a concurrent read (GET
- * /sessions/{id}) and a concurrent write (the next move landing) from tearing. Both the SSE
- * stream and GET /sessions/{id} are populated from here, which is what makes the stream an
- * optimisation rather than a dependency: either can rebuild the same state.
- */
 @Component
 public class SessionStateStore {
 

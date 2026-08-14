@@ -6,11 +6,6 @@ import com.tictactoe.engine.util.BoardUtils;
 
 import java.util.List;
 
-/**
- * A loaded game, opaque to callers outside this package. Wraps the JPA
- * entity so {@link GameStore#save} can reuse the row a prior
- * {@link GameStore#load} already fetched, instead of querying it again.
- */
 public final class Game {
 
     private final GameEntity entity;

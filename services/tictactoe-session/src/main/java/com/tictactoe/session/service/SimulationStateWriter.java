@@ -35,12 +35,6 @@ public class SimulationStateWriter {
         simulationRepository.save(simulationEntity);
     }
 
-    /**
-     * Closes the loop-exit hole: if the loop stopped because it ran out of iterations without
-     * the engine ever returning a terminal {@link GameState}, this is the only place left to
-     * turn that into a terminal row. When {@code progress} is already terminal (the normal case
-     * — it was persisted by the last {@link #persist} call in the loop), this is a no-op.
-     */
     void persistTerminal(String simulationId, SimulationProgress progress) {
         if (GameState.IN_PROGRESS.equals(progress.gameState())) {
             fail(simulationId, ErrorCode.INTERNAL_ERROR,
@@ -48,11 +42,6 @@ public class SimulationStateWriter {
         }
     }
 
-    /**
-     * Persists the terminal FAILED outcome for a simulation that threw. Swallows its own
-     * failures — logs and returns — so a failure to record a failure can never mask the
-     * original exception that {@link SimulationRunner} is already handling.
-     */
     void fail(String simulationId, ErrorCode errorCode, String message) {
         try {
             SimulationEntity simulationEntity = findOrThrow(simulationId);

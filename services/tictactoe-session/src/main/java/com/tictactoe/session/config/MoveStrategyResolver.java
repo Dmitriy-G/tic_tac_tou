@@ -10,10 +10,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 
-/**
- * Simulation type (SIMPLE -&gt; random move, ADVANCED -&gt; rule-based) is resolved per symbol
- * from config, so X and O can run different strategies; only SIMPLE is implemented today.
- */
 @Component
 public class MoveStrategyResolver {
 

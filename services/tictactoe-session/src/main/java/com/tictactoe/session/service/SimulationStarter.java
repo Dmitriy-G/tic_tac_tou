@@ -53,17 +53,11 @@ public class SimulationStarter {
         try {
             simulationRepository.save(simulation);
         } catch (DataIntegrityViolationException e) {
-            // The unique partial index on (session_id) WHERE status = 'IN_PROGRESS' lost the
-            // race for us: two concurrent POSTs both passed the existsBySessionIdAndStatus check,
-            // and the database rejected the second insert. The race loses cleanly with 409.
             throw new SimulationAlreadyRunningException(sessionId);
         }
 
         stateStore.markRunning(sessionId);
 
-        // MDC does not propagate across Thread.ofVirtual().start(), so the trace id has to be
-        // captured here and handed to the runner explicitly. Falls back to the sessionId when
-        // nothing is in scope (e.g. a test calling start() directly, outside a request).
         String traceId = MDC.get(CorrelationIdFilter.MDC_KEY);
         String effectiveTraceId = traceId != null ? traceId : sessionId;
         Thread.ofVirtual().start(() -> runner.run(sessionId, simulationId.toString(), effectiveTraceId));

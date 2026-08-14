@@ -6,11 +6,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 
-/**
- * The 8 winning lines of the board, parsed from {@code game.winning-lines}
- * and validated once at startup so a malformed property fails context
- * startup instead of blowing up mid-game.
- */
 @Component
 public class WinningLines {
 

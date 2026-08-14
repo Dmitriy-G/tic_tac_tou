@@ -38,10 +38,6 @@ public class SimulationEventPublisher {
                 MDC.get("traceId")));
     }
 
-    /**
-     * Errors after the 202 have no HTTP response left to fail into — this event is how the
-     * client learns the simulation died, instead of inferring it from a stream that just stops.
-     */
     void publishFailure(String sessionId, ErrorCode errorCode, String message) {
         stateStore.recordFailure(sessionId, errorCode, message);
 

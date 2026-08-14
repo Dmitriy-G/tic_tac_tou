@@ -27,11 +27,6 @@ import org.springframework.web.client.RestClient;
 import java.time.Duration;
 import java.util.function.Supplier;
 
-/**
- * Timeouts are explicit (below) — the single most commonly missed thing in this assignment.
- * Every non-2xx response and every transport failure is classified (see {@link #classify}) into
- * a typed exception before it leaves this class; callers never see a raw Spring Web exception.
- */
 @Component
 public class GameEngineClientImpl implements GameEngineClient {
 
@@ -50,12 +45,6 @@ public class GameEngineClientImpl implements GameEngineClient {
                 retryMaxAttempts, retryInitialBackoffMs);
     }
 
-    /**
-     * Test seam: lets {@code MockRestServiceServer} bind to the {@code RestClient.Builder} and
-     * build the {@link RestClient} itself, since the primary constructor's own
-     * {@code .requestFactory(...)} call would otherwise overwrite whatever factory the mock
-     * server installed on a shared builder.
-     */
     GameEngineClientImpl(RestClient restClient, int retryMaxAttempts, long retryInitialBackoffMs) {
         this.restClient = restClient;
         RetryConfig retryConfig = RetryConfig.custom()
@@ -132,11 +121,6 @@ public class GameEngineClientImpl implements GameEngineClient {
         return traceId != null ? traceId : "";
     }
 
-    /**
-     * Never pass a downstream status through: the session exists even when the engine has lost
-     * the game (404), and a 400 from the engine means the session built a bad request, not that
-     * the caller sent one. See the mapping table in {@code docs/adr/0004-downstream-status-mapping.md}.
-     */
     private RuntimeException classify(Exception e, String gameId) {
         if (e instanceof ResourceAccessException) {
             return new EngineUnavailableException(ErrorCode.ENGINE_UNAVAILABLE,

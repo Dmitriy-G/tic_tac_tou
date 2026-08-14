@@ -11,13 +11,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.UUID;
 
-/**
- * Every log line for a request is greppable by {@code traceId}: reads {@value #HEADER} from the
- * caller, or generates one if absent, puts it in MDC, and echoes it back on the response.
- * {@link com.tictactoe.session.client.GameEngineClientImpl} forwards the same value to the
- * engine on every call, and {@link com.tictactoe.session.service.SimulationStarter} captures it
- * for the background simulation thread, where MDC does not propagate on its own.
- */
 @Component
 public class CorrelationIdFilter extends OncePerRequestFilter {
 

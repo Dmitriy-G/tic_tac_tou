@@ -8,9 +8,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/**
- * Resolves the outcome of a board after a move has been applied to it.
- */
 @Component
 public class GameOutcomeEvaluator {
 
@@ -20,10 +17,6 @@ public class GameOutcomeEvaluator {
         this.winningLines = winningLines;
     }
 
-    /**
-     * Win is checked BEFORE fullness, so a winning move on the last empty
-     * cell is a win, not a draw.
-     */
     public Outcome resolve(List<String> board, Symbol symbol) {
         if (isWin(board, symbol)) {
             GameState state = symbol == Symbol.X ? GameState.X_WON : GameState.O_WON;

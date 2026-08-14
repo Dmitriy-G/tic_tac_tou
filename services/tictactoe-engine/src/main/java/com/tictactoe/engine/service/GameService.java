@@ -27,16 +27,12 @@ public class GameService {
     }
 
     public CreateGameResponse createGame(String gameId) {
-        // Do NOT add an "already exists" check. Today a repeated createGame
-        // silently resets the game. See DEFERRED-3.
         List<String> board = BoardUtils.emptyBoard();
         gameStore.create(gameId, board);
         return new CreateGameResponse(board);
     }
 
     public GameResponse getGame(String gameId) {
-        // Board type is List<String> in CreateGameResponse and String here.
-        // Left as-is — see DEFERRED-4.
         Game game = gameStore.load(gameId);
         return new GameResponse(BoardUtils.convertToString(game.board()), game.state());
     }

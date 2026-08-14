@@ -20,11 +20,6 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import java.util.List;
 
-/**
- * Shared {@code @RestControllerAdvice} base extended by both services' handlers. Only faults
- * land here (see D1 in {@code docs/adr/0003-error-channels.md}) — rule outcomes like
- * {@code StepStatus} stay on their HTTP-200 channel and never reach this class.
- */
 public abstract class BaseGlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(BaseGlobalExceptionHandler.class);
@@ -42,11 +37,6 @@ public abstract class BaseGlobalExceptionHandler {
         return respond(code, e.getMessage(), request, null);
     }
 
-    /**
-     * Spring 6.1+ validation failures on {@code @PathVariable}/{@code @RequestParam} land here,
-     * not in the generic catch-all — without this handler they fall through to it and get
-     * mislabelled {@code INTERNAL_ERROR} instead of {@code VALIDATION_ERROR}.
-     */
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ResponseEntity<ErrorResponse> handleHandlerMethodValidation(HandlerMethodValidationException e,
                                                                         HttpServletRequest request) {
@@ -125,10 +115,6 @@ public abstract class BaseGlobalExceptionHandler {
         return respond(ErrorCode.DATABASE_ERROR, "A database error occurred", request, null);
     }
 
-    /**
-     * Catch-all. Logs the full stack trace but returns a fixed message — never
-     * {@code ex.getMessage()}, which can leak internals the client has no business seeing.
-     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception e, HttpServletRequest request) {
         log.error("{} {} -> 500 INTERNAL_ERROR", request.getMethod(), request.getRequestURI(), e);

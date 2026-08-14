@@ -31,17 +31,8 @@ public class SimulationRunner {
         this.eventPublisher = eventPublisher;
     }
 
-    /**
-     * A session must never be left {@code IN_PROGRESS} after this method returns. Three
-     * obligations, always in this order: persist the terminal state, notify subscribers, then
-     * release the SSE emitter — so a subscriber that reacts to completion by re-fetching the
-     * session always sees the row this method already wrote.
-     */
     void run(String sessionId, String simulationId, String traceId) {
         try {
-            // MDC does not propagate across Thread.ofVirtual().start() — SimulationStarter
-            // captured the trace id before spawning this thread, and it's set here so every log
-            // line and outgoing engine call for this simulation carries it.
             MDC.put(CorrelationIdFilter.MDC_KEY, traceId);
             List<String> board = gameEngineClient.createGame(simulationId).board();
             SimulationProgress progress = SimulationProgress.start(board);

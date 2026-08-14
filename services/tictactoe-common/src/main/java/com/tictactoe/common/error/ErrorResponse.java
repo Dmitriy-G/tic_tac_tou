@@ -5,11 +5,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
 import java.util.List;
 
-/**
- * The single error body shape returned by both services. {@code traceId} is the correlation id
- * (see {@code CorrelationIdFilter}) and {@code fieldErrors} is populated only for validation
- * failures.
- */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ErrorResponse(Instant timestamp, int status, String code, String message,
                              String path, String traceId, List<FieldError> fieldErrors) {

@@ -6,16 +6,6 @@ import com.tictactoe.common.dto.MoveResponse;
 
 import java.util.List;
 
-/**
- * Mutable state for one simulation run: the current board, game state, move number and error
- * count.
- *
- * <p>Termination proof: every {@link #recordStep} call increments exactly one of {@code
- * moveNumber} or {@code errorsCount}. {@code moveNumber} is capped at {@link #MAX_MOVES}, and
- * {@code errorsCount} forces a terminal state once it exceeds {@link #MAX_ERRORS}. So the loop
- * driven by {@link #hasNextIteration()} runs at most {@code MAX_MOVES + MAX_ERRORS + 1} = 20
- * iterations.
- */
 final class SimulationProgress {
 
     private static final int MAX_MOVES = 9;

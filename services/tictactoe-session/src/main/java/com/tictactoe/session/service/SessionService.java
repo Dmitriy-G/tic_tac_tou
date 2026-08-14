@@ -43,11 +43,6 @@ public class SessionService {
         simulationStarter.start(sessionId);
     }
 
-    /**
-     * Rebuilds the full session view from {@link SessionStateStore} — status, board, move
-     * history, winner and any failure — so SSE is an optimisation on top of this, not the only
-     * way to observe a session. A page refresh or a lost stream can always fall back here.
-     */
     public SessionResponse getSession(String sessionId) {
         if (!sessionRepository.existsById(UUID.fromString(sessionId))) {
             throw new SessionNotFoundException(sessionId);
@@ -56,7 +51,7 @@ public class SessionService {
     }
 
     public SseEmitter subscribe(String sessionId, String lastEventId) {
-        getSession(sessionId); // existence check only; result intentionally discarded
+        getSession(sessionId);
         return emitterRegistry.register(sessionId, lastEventId);
     }
 
