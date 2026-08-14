@@ -60,8 +60,6 @@ The `games` table lives in its own `engine_db` PostgreSQL database (never shared
 
 ## Error handling
 
-`GameExceptionHandler` (`@RestControllerAdvice`) extends `BaseGlobalExceptionHandler` from `tictactoe-common` — see the root README's error-code table and `docs/adr/0003-error-channels.md` / `docs/adr/0004-downstream-status-mapping.md`. Rule outcomes (`StepStatus` in a `200` `MoveResponse` — occupied cell, out-of-turn, finished game, etc.) never go through this handler; only faults do:
-
 - `GameNotFoundException` (extends `NotFoundException`) → `404 GAME_NOT_FOUND`.
 - A non-UUID `gameId` path variable → `400 INVALID_GAME_ID` (caught at `GameStore`, the point where `UUID.fromString` actually throws).
 - `MoveRequest` validation (`@NotNull symbol`, `@Min(0) @Max(8) position`) → `400 VALIDATION_ERROR` with a `fieldErrors` entry per failed constraint.

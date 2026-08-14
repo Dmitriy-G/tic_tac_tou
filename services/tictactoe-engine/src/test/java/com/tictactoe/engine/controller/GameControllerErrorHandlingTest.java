@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * The engine's fault channel end to end: every rejection here is a broken/malformed request or
- * an unknown game, never a rule outcome — see docs/adr/0003-error-channels.md for the
+ * an unknown game, never a rule outcome — see docs for the
  * distinction. {@link GameJpaRepository} is mocked because these tests exercise translation, not
  * persistence (already covered by GameStoreTest / PostgresGameResponseRepositoryTest).
  */

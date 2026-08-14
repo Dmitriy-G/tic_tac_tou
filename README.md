@@ -116,15 +116,13 @@ mvn test -pl services/tictactoe-engine      # one module
 
 cd services/tictactoe-frontend
 npm run type-check
-npm run lint:biome
 ```
 
 ## Error handling
 
 Both services share one error shape and one code catalog (`com.tictactoe.common.error` in
 `tictactoe-common`) for every fault — an unknown id, a malformed request, a dependency down. Rule
-outcomes (`StepStatus` on a move) are a separate channel and never appear here — see
-`docs/adr/0003-error-channels.md`.
+outcomes (`StepStatus` on a move) are a separate channel and never appear here.
 
 Every response body: `{timestamp, status, code, message, path, traceId, fieldErrors?}`. `traceId`
 is the `X-Correlation-Id` correlation id, echoed on the response header too.
@@ -155,9 +153,6 @@ is the `X-Correlation-Id` correlation id, echoed on the response header too.
 | `ENGINE_BAD_RESPONSE` | 502 | Session→engine: unparseable or incomplete response |
 | `SIMULATION_TIMEOUT` | 500 | Session: reserved, not yet used |
 | `DATABASE_ERROR` | 503 | Either service: repository threw `DataAccessException` |
-
-See `docs/adr/0004-downstream-status-mapping.md` for why the session service never passes an
-engine HTTP status straight through to its own caller.
 
 ## Structure
 

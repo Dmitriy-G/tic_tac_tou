@@ -42,7 +42,6 @@ npm install
 npm run dev          # Vite dev server
 npm run build
 npm run type-check   # tsc --noEmit
-npm run lint:biome
 
 # Full stack
 docker compose up --build

@@ -1,4 +1,4 @@
-# Describer ADR
+# Described ADR
 
 About Gateway [0001-edge-routing-no-gateway.md](0001-edge-routing-no-gateway.md)
 
