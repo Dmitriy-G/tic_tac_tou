@@ -5,7 +5,7 @@ services:
       POSTGRES_DB: engine_db
       POSTGRES_USER: engine
       POSTGRES_PASSWORD: engine
-      #TODO: port need to local run. Separate yml
+      #TODO: port need to local check. Separate yml
     ports:
       - "5433:5432"
     volumes:
@@ -22,7 +22,7 @@ services:
       POSTGRES_DB: session_db
       POSTGRES_USER: session
       POSTGRES_PASSWORD: session
-      #TODO: port need to local run. Separate yml
+      #TODO: port need to local check. Separate yml
     ports:
       - "5434:5432"
     volumes:

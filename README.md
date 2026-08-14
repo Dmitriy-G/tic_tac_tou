@@ -14,7 +14,7 @@ A distributed Tic Tac Toe application in which the game is played automatically 
 - **Game Session Service** — creates and manages game sessions, automates moves for both players, and coordinates with the Game Engine Service.
 - **Frontend** — starts a simulation and renders the board, status, and move history as the microservices play against each other, via SSE with a polling fallback.
 
-See `CLAUDE.md` for the full API contract, domain rules, and conventions; `task.MD` / `task.pdf` for the original assignment spec.
+See `CLAUDE.md` for the full API contract, domain rules, and conventions;
 
 ## Running everything
 
