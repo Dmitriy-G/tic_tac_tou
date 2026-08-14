@@ -6,6 +6,5 @@ public enum GameState {
     X_WON,
     O_WON,
     DRAW,
-    FAILED,
-    CANCELLED
+    FAILED
 }
