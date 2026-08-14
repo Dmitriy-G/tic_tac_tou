@@ -1,4 +1,6 @@
-import { defineConfig } from 'vite'
+// vitest/config re-exports vite's defineConfig with the `test` option typed in — same runtime
+// config either way, so this doesn't affect `vite`/`vite build`.
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 // Minimal ambient type for the one Node global this file reads — avoids adding @types/node as a
@@ -16,5 +18,10 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
+  },
+  test: {
+    // No component rendering tests (see CLAUDE.md) — the suite is pure reducer/logic functions,
+    // so the default Node environment is enough; no jsdom dependency needed.
+    include: ['src/**/*.test.ts'],
   },
 })

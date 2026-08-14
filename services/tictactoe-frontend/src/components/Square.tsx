@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { SquareValue } from '../utils/types'
 
 interface SquareProps {
@@ -5,7 +6,7 @@ interface SquareProps {
   isWinning: boolean
 }
 
-function Square({ value, isWinning }: SquareProps) {
+const Square = memo(function Square({ value, isWinning }: SquareProps) {
   return (
     <div
       className={`square${isWinning ? ' square--winning' : ''}`}
@@ -15,6 +16,6 @@ function Square({ value, isWinning }: SquareProps) {
       {value}
     </div>
   )
-}
+})
 
 export default Square

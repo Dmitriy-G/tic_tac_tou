@@ -43,19 +43,30 @@ Then open the URL printed in the terminal (usually [http://localhost:5173](http:
 | ----------------- | --------------------------------------------- |
 | `npm run dev`     | Start the local dev server                    |
 | `npm run build`   | Type-check and build for production (`dist/`) |
+| `npm run type-check` | `tsc -b` only, no build                    |
 | `npm run preview` | Preview the production build locally          |
 | `npm run lint`    | Run ESLint                                    |
+| `npm run test`    | Run the Vitest suite once                     |
+| `npm run test:watch` | Run Vitest in watch mode                   |
 
 ## Project structure
 
 ```
 src/
-  main.tsx             # App entry point
-  App.tsx              # Game state: turns, win/draw detection, SSE subscription
+  main.tsx             # Entry point; wraps App in ErrorBoundary inside StrictMode
+  App.tsx              # Structure only — calls useSimulation, renders the components below
+  state/
+    simulationReducer.ts # The one simulation run's state machine (see CLAUDE.md)
+  hooks/
+    useSimulation.ts     # Composes the two hooks below with the reducer; the only hook App calls
+    useSseSubscription.ts # Owns the EventSource lifecycle
+    useSessionPolling.ts  # Polling fallback while the stream is down
   components/
-    Board.tsx           # 3x3 grid
-    Square.tsx           # Single cell
-    MoveLog.tsx          # Move history list
+    Board.tsx           # 3x3 grid (role="grid" / role="row" / role="gridcell")
+    Square.tsx           # Single presentational cell, memoized
+    MoveLog.tsx          # Move history list, formatted from structured entries at render time
+    StatusBanner.tsx     # phase -> status text
+    ErrorBoundary.tsx    # Catches render throws
   services/
     gameApiService.ts    # REST + SSE calls to tictactoe-session
   utils/
@@ -64,11 +75,19 @@ src/
     moveLog.ts             # Move log formatting
   styles/
     App.css, index.css
-  views/                # placeholder — no route-level views yet
-  hooks/                # placeholder — no custom hooks yet
-  config/               # placeholder — no runtime config module yet
 ```
+
+See this module's `CLAUDE.md` for how the pieces compose and the two recorded deviations from the
+root `CLAUDE.md` (ESLint instead of Biome, no `@tanstack/react-query`).
 
 ## Status
 
-`App.tsx` still owns the current game/session state directly with `useState`/`useRef` rather than `@tanstack/react-query`, and lint is ESLint rather than the Biome the root `CLAUDE.md` calls for — neither migration has happened yet. SSE error handling is implemented: `onerror` does not close the stream immediately (the browser reconnects on its own), a `RECONNECTING` indicator shows while polling `GET /api/sessions/{id}` as a fallback, and the stream only gives up after a bounded timeout. The `failure` SSE event and `GET /api/sessions/{id}` error fields (`errorCode`/`errorMessage`) both surface in the error banner. Refresh-mid-simulation rehydration (restoring `sessionId` itself after a reload) is not implemented — there is nowhere client-side to read it back from, since `CLAUDE.md` forbids `localStorage`/`sessionStorage` and the session id is not in the URL.
+SSE error handling: `onerror` does not close the stream immediately (the browser reconnects on
+its own), a reconnecting indicator shows while polling `GET /api/sessions/{id}` as a fallback, and
+the stream only gives up after a bounded timeout (8s), at which point the run is marked failed.
+The `failure` SSE event and `GET /api/sessions/{id}` error fields (`errorCode`/`errorMessage`)
+both surface in the error banner. The move log is rebuilt from `session.moves` on every poll
+snapshot, so it survives a stream drop instead of losing whatever arrived while SSE was down.
+Refresh-mid-simulation rehydration (restoring `sessionId` itself after a reload) is not
+implemented — there is nowhere client-side to read it back from, since `CLAUDE.md` forbids
+`localStorage`/`sessionStorage` and the session id is not in the URL.

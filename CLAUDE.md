@@ -261,7 +261,7 @@ Coverage that must exist:
 
 ## Frontend
 
-- React 19 + TypeScript strict + Vite. Biome for lint and format (not ESLint/Prettier).
+- React 19 + TypeScript strict + Vite. Lint is ESLint (`services/tictactoe-frontend/eslint.config.js`), not Biome — a deliberate, recorded deviation (see that module's `CLAUDE.md`): the ESLint config was already working and tuned for React 19, and migrating buys nothing a reviewer would see. Don't migrate it to Biome; don't add Prettier either.
 - `@tanstack/react-query` for REST; native `EventSource` for the SSE stream.
 - PascalCase component files, `use*` hooks, camelCase service files (`gameApiService.ts`). Named exports for hooks/utils, default export for pages.
 - Required behaviour:

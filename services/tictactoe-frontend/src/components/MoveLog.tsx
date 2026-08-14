@@ -1,5 +1,8 @@
+import { formatMoveLogEntry } from '../utils/moveLog'
+import type { MoveHistoryEntry } from '../utils/types'
+
 interface MoveLogProps {
-  entries: string[]
+  entries: MoveHistoryEntry[]
 }
 
 function MoveLog({ entries }: MoveLogProps) {
@@ -10,7 +13,7 @@ function MoveLog({ entries }: MoveLogProps) {
         {entries.length === 0 ? (
           <li className="log__empty">No moves yet.</li>
         ) : (
-          entries.map((entry, index) => <li key={index}>{entry}</li>)
+          entries.map((entry) => <li key={entry.moveNumber}>{formatMoveLogEntry(entry)}</li>)
         )}
       </ul>
     </aside>

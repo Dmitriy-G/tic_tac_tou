@@ -1,23 +1,7 @@
-import type { Player, StepStatus } from './types'
+import type { MoveHistoryEntry } from './types'
 
-function pad(value: number): string {
-  return value.toString().padStart(2, '0')
-}
-
-export function formatTimestamp(date: Date): string {
-  const datePart = `${pad(date.getMonth() + 1)}/${pad(date.getDate())}/${date.getFullYear()}`
-  const timePart = `${pad(date.getHours())}.${pad(date.getMinutes())}`
-  return `${datePart} ${timePart}`
-}
-
-export function formatMoveLogEntry(
-  date: Date,
-  stepStatus: StepStatus,
-  player: Player | null,
-  cell: number | null,
-): string {
-  if (player === null || cell === null) {
-    return `${formatTimestamp(date)}: ${stepStatus}`
-  }
-  return `${formatTimestamp(date)}: ${player} was set to ${cell} cell. ${stepStatus}`
+/** Formats from the structured move record rather than a client-observed timestamp, so a move
+ * replayed from `session.moves` after a reconnect renders identically to one seen live over SSE. */
+export function formatMoveLogEntry(entry: MoveHistoryEntry): string {
+  return `Move ${entry.moveNumber}: ${entry.symbol} was set to ${entry.position + 1} cell. ${entry.stepStatus}`
 }
