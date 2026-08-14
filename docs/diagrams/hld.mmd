@@ -1,7 +1,0 @@
-graph LR
-    UI["tictactoe-frontend<br/>React + TS · :5173"]
-    Session["tictactoe-session<br/>Spring Boot · :8082"]
-    Engine["tictactoe-engine<br/>Spring Boot · :8081"]
-
-    UI -- "POST /sessions<br/>POST /sessions/{id}/simulate<br/>GET /sessions/{id}<br/>GET /sessions/{id}/events (SSE)" --> Session
-    Session -- "POST /games<br/>POST /games/{id}/move<br/>GET /games/{id}" --> Engine
