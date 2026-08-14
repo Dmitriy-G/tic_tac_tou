@@ -15,6 +15,7 @@ Owns the Tic Tac Toe board state: validates moves and determines the game outcom
 | `ENGINE_DB_URL` | `jdbc:postgresql://localhost:5433/engine_db` | JDBC URL for `engine_db` |
 | `ENGINE_DB_USERNAME` | `engine` | Database username |
 | `ENGINE_DB_PASSWORD` | `engine` | Database password |
+| `INTERNAL_TOKEN` | *(none — required)* | Shared secret every request must present as `X-Internal-Token`, enforced by `InternalTokenFilter`. No default; startup fails if unset. See `docs/adr/0002-security-model.md` |
 
 ## Running
 
@@ -66,3 +67,4 @@ The `games` table lives in its own `engine_db` PostgreSQL database (never shared
 - `MoveRequest` validation (`@NotNull symbol`, `@Min(0) @Max(8) position`) → `400 VALIDATION_ERROR` with a `fieldErrors` entry per failed constraint.
 - Everything else inherited from `BaseGlobalExceptionHandler` (malformed JSON, wrong HTTP method, repository failure, unexpected exception) with no engine-specific override needed.
 - `CorrelationIdFilter` reads/generates `X-Correlation-Id`, puts it in MDC as `traceId`, and echoes it on the response; every error body's `traceId` field comes from there.
+- `InternalTokenFilter` runs immediately after `CorrelationIdFilter` and rejects any request without a matching `X-Internal-Token` header with `401 UNAUTHORIZED` (constant-time comparison via `MessageDigest.isEqual`), except `/actuator/**`. This is the boundary that keeps the engine callable only by the session service — see `docs/adr/0002-security-model.md`.

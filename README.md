@@ -25,20 +25,48 @@ docker compose up --build
 Everything is reachable from one origin: **http://localhost:5173**. The frontend's nginx serves
 the built UI at `/` and reverse-proxies `/api/*` to the session service — there is no separate API
 host to configure, and no CORS layer exists anywhere (same origin doesn't need one). See
-`docs/adr/0005-edge-routing-no-gateway.md`.
+`docs/adr/0001-edge-routing-no-gateway.md`.
 
 ## Endpoints
 
 | Method | Path (via `:5173`, browser-facing) | Path (direct, for `curl`/Swagger) | Description |
 | --- | --- | --- | --- |
 | `POST` | `/api/sessions` | `tictactoe-session:8082/sessions` | Create a session |
-| `POST` | `/api/sessions/{id}/simulate` | `tictactoe-session:8082/sessions/{id}/simulate` | Start the automated simulation (async) |
+| `POST` | `/api/sessions/{id}/simulate` | `tictactoe-session:8082/sessions/{id}/simulate` | Start the automated simulation (async, owner-only — see Security below) |
 | `GET` | `/api/sessions/{id}` | `tictactoe-session:8082/sessions/{id}` | Full session view — status, board, moves, winner, error |
 | `GET` | `/api/sessions/{id}/events` | `tictactoe-session:8082/sessions/{id}/events` | SSE stream of board updates |
 | — | — | `tictactoe-engine:8081/games...` | Engine API — never called by the browser, only by the session service |
 
-The direct `:8081`/`:8082` ports stay published in `docker-compose.yml` for inspection and Swagger
-UI even though the UI itself never uses them — see the ADR's Decision item 3.
+`tictactoe-session:8082` stays published to the host for inspection and Swagger UI
+(`http://localhost:8082/swagger-ui.html`). The engine and both Postgres databases are **not**
+published — see Security below for how to reach them anyway.
+
+## Security
+
+Copy `.env.example` to `.env` and set `INTERNAL_TOKEN` before running `docker compose up` — both
+services fail to start without it. See `docs/adr/0002-security-model.md` for the full model
+(network exposure, the engine's internal-token boundary, and session ownership).
+
+`POST /sessions` returns an owner token and also sets it as an `HttpOnly` cookie
+(`tictactoe_session_owner`, `Path=/api`). The browser sends it automatically on subsequent
+requests; a `curl` user must capture and replay it explicitly with `-c`/`-b`, or the first
+`/simulate` call gets a `403 NOT_SESSION_OWNER`:
+
+```bash
+curl -s -c jar.txt -XPOST http://localhost:5173/api/sessions | jq .
+SID=<sessionId from the response above>
+curl -s -b jar.txt -XPOST http://localhost:5173/api/sessions/$SID/simulate
+curl -s http://localhost:5173/api/sessions/$SID   # GET is open, no cookie needed
+```
+
+The engine and both databases are reachable only from inside the Compose network by default. To
+inspect them manually (e.g. the engine's Swagger UI), bring up the debug profile, which
+republishes `8081` via a `socat` sidecar:
+
+```bash
+docker compose --profile debug up -d
+curl http://localhost:8081/actuator/health
+```
 
 ## Running each service individually
 
@@ -106,6 +134,8 @@ is the `X-Correlation-Id` correlation id, echoed on the response header too.
 | `VALIDATION_ERROR` | 400 | Request body/params failed `@Valid` constraints |
 | `MALFORMED_REQUEST` | 400 | Body isn't valid JSON, or another `IllegalArgumentException` |
 | `NOT_FOUND` | 404 | Generic not-found |
+| `UNAUTHORIZED` | 401 | Engine: missing/invalid `X-Internal-Token` (session→engine boundary only) |
+| `NOT_SESSION_OWNER` | 403 | Session: `/simulate` called without the creating session's owner cookie |
 | `METHOD_NOT_ALLOWED` | 405 | Wrong HTTP method for the path |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | Wrong `Content-Type` |
 | `CONFLICT` | 409 | Generic conflict |

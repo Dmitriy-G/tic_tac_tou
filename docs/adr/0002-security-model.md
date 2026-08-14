@@ -1,4 +1,4 @@
-do git# 0002: Session ownership tokens and a shared internal secret, no user identity
+# 0002: Session ownership tokens and a shared internal secret, no user identity
 
 ## Status
 

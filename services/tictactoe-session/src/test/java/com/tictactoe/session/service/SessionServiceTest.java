@@ -5,6 +5,8 @@ import com.tictactoe.common.domain.StepStatus;
 import com.tictactoe.common.domain.Symbol;
 import com.tictactoe.common.dto.MoveResponse;
 import com.tictactoe.session.dto.SessionResponse;
+import com.tictactoe.session.entity.SessionEntity;
+import com.tictactoe.session.exception.NotSessionOwnerException;
 import com.tictactoe.session.exception.SessionNotFoundException;
 import com.tictactoe.session.repository.SessionJpaRepository;
 import com.tictactoe.session.sse.SseEmitterRegistry;
@@ -12,11 +14,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -30,8 +34,9 @@ class SessionServiceTest {
     private final SseEmitterRegistry emitterRegistry = mock(SseEmitterRegistry.class);
     private final SimulationStarter simulationStarter = mock(SimulationStarter.class);
     private final SessionStateStore stateStore = new SessionStateStore();
+    private final OwnerTokenService ownerTokenService = new OwnerTokenService();
     private final SessionService sessionService =
-            new SessionService(sessionRepository, emitterRegistry, simulationStarter, stateStore);
+            new SessionService(sessionRepository, emitterRegistry, simulationStarter, stateStore, ownerTokenService);
 
     private final UUID sessionUuid = UUID.randomUUID();
     private final String sessionId = sessionUuid.toString();
@@ -39,6 +44,69 @@ class SessionServiceTest {
     @BeforeEach
     void setUp() {
         when(sessionRepository.existsById(sessionUuid)).thenReturn(true);
+    }
+
+    @Test
+    void simulateWithoutOwnerTokenThrowsNotSessionOwner() {
+        SessionEntity entity = new SessionEntity();
+        entity.setId(sessionUuid);
+        entity.setOwnerTokenHash(ownerTokenService.hash("correct-token"));
+        when(sessionRepository.findById(sessionUuid)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> sessionService.simulate(sessionId, null))
+                .isInstanceOf(NotSessionOwnerException.class);
+    }
+
+    @Test
+    void simulateWithWrongOwnerTokenThrowsNotSessionOwner() {
+        SessionEntity entity = new SessionEntity();
+        entity.setId(sessionUuid);
+        entity.setOwnerTokenHash(ownerTokenService.hash("correct-token"));
+        when(sessionRepository.findById(sessionUuid)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> sessionService.simulate(sessionId, "wrong-token"))
+                .isInstanceOf(NotSessionOwnerException.class);
+    }
+
+    @Test
+    void simulateOnUnknownSessionThrowsSessionNotFoundNotForbidden() {
+        when(sessionRepository.findById(sessionUuid)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> sessionService.simulate(sessionId, null))
+                .isInstanceOf(SessionNotFoundException.class);
+    }
+
+    @Test
+    void simulateWithCorrectOwnerTokenStartsTheSimulation() {
+        SessionEntity entity = new SessionEntity();
+        entity.setId(sessionUuid);
+        entity.setOwnerTokenHash(ownerTokenService.hash("correct-token"));
+        when(sessionRepository.findById(sessionUuid)).thenReturn(Optional.of(entity));
+
+        sessionService.simulate(sessionId, "correct-token");
+
+        verify(simulationStarter).start(sessionId);
+    }
+
+    @Test
+    void createSessionReturnsAFreshOwnerTokenAndPersistsOnlyItsHash() {
+        SessionResponse response = sessionService.createSession();
+
+        assertThat(response.ownerToken()).isNotBlank();
+        org.mockito.ArgumentCaptor<SessionEntity> captor = org.mockito.ArgumentCaptor.forClass(SessionEntity.class);
+        verify(sessionRepository).save(captor.capture());
+        assertThat(captor.getValue().getOwnerTokenHash())
+                .isEqualTo(ownerTokenService.hash(response.ownerToken()))
+                .isNotEqualTo(response.ownerToken());
+    }
+
+    @Test
+    void getSessionDoesNotExposeAnOwnerToken() {
+        stateStore.initialize(sessionId);
+
+        SessionResponse response = sessionService.getSession(sessionId);
+
+        assertThat(response.ownerToken()).isNull();
     }
 
     @Test

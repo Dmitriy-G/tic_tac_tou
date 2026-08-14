@@ -9,6 +9,7 @@ import org.springframework.web.client.RestClient;
 import java.net.SocketTimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -26,7 +27,7 @@ class GameEngineClientImplTest {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         RestClient restClient = builder.baseUrl("http://engine").build();
-        return new GameEngineClientImpl(restClient, maxAttempts, 1);
+        return new GameEngineClientImpl(restClient, maxAttempts, 1, "test-internal-token");
     }
 
     private MockRestServiceServer server;
@@ -121,6 +122,25 @@ class GameEngineClientImplTest {
 
         // Exactly one call was expected/consumed; a second would fail verify() with "no further
         // requests expected", proving classify()'s non-retryable branches short-circuit the retry.
+        server.verify();
+    }
+
+    @Test
+    void internalTokenHeaderIsPresentOnBothCreateGameAndMoveCalls() {
+        GameEngineClientImpl client = clientWithRetries(3);
+        server.expect(requestTo("http://engine/games"))
+                .andExpect(header("X-Internal-Token", "test-internal-token"))
+                .andRespond(withSuccess("""
+                        {"board":[".",".",".",".",".",".",".",".","."]}""", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://engine/games/game-1/move"))
+                .andExpect(header("X-Internal-Token", "test-internal-token"))
+                .andRespond(withSuccess("""
+                        {"board":["X",".",".",".",".",".",".",".","."],"gameState":"IN_PROGRESS","stepStatus":"CORRECT_STEP"}""",
+                        MediaType.APPLICATION_JSON));
+
+        client.createGame("game-1");
+        client.move("game-1", "X", 0);
+
         server.verify();
     }
 }

@@ -30,9 +30,12 @@ import java.util.function.Supplier;
 @Component
 public class GameEngineClientImpl implements GameEngineClient {
 
+    private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+
     private final RestClient restClient;
     private final DefaultResponseErrorHandler errorHandler = new DefaultResponseErrorHandler();
     private final Retry retry;
+    private final String internalToken;
 
     @Autowired
     public GameEngineClientImpl(RestClient.Builder restClientBuilder,
@@ -40,13 +43,15 @@ public class GameEngineClientImpl implements GameEngineClient {
                                  @Value("${game-engine.connect-timeout-ms:2000}") long connectTimeoutMs,
                                  @Value("${game-engine.read-timeout-ms:3000}") long readTimeoutMs,
                                  @Value("${game-engine.retry.max-attempts:3}") int retryMaxAttempts,
-                                 @Value("${game-engine.retry.initial-backoff-ms:200}") long retryInitialBackoffMs) {
+                                 @Value("${game-engine.retry.initial-backoff-ms:200}") long retryInitialBackoffMs,
+                                 @Value("${internal.token}") String internalToken) {
         this(buildRestClient(restClientBuilder, gameEngineBaseUrl, connectTimeoutMs, readTimeoutMs),
-                retryMaxAttempts, retryInitialBackoffMs);
+                retryMaxAttempts, retryInitialBackoffMs, internalToken);
     }
 
-    GameEngineClientImpl(RestClient restClient, int retryMaxAttempts, long retryInitialBackoffMs) {
+    GameEngineClientImpl(RestClient restClient, int retryMaxAttempts, long retryInitialBackoffMs, String internalToken) {
         this.restClient = restClient;
+        this.internalToken = internalToken;
         RetryConfig retryConfig = RetryConfig.custom()
                 .maxAttempts(retryMaxAttempts)
                 .intervalFunction(IntervalFunction.ofExponentialRandomBackoff(Duration.ofMillis(retryInitialBackoffMs)))
@@ -82,6 +87,7 @@ public class GameEngineClientImpl implements GameEngineClient {
             CreateGameResponse response = restClient.post()
                     .uri("/games")
                     .header(CorrelationIdFilter.HEADER, correlationId())
+                    .header(INTERNAL_TOKEN_HEADER, internalToken)
                     .body(new CreateGameRequest(gameId))
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (req, res) -> errorHandler.handleError(res))
@@ -103,6 +109,7 @@ public class GameEngineClientImpl implements GameEngineClient {
             return restClient.post()
                     .uri("/games/{gameId}/move", gameId)
                     .header(CorrelationIdFilter.HEADER, correlationId())
+                    .header(INTERNAL_TOKEN_HEADER, internalToken)
                     .body(new MoveRequest(Symbol.valueOf(player), position))
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (req, res) -> errorHandler.handleError(res))

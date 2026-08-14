@@ -34,6 +34,13 @@ simulation:
 sse:
   heartbeat-interval-ms: ${SSE_HEARTBEAT_INTERVAL_MS:15000}
 
+internal:
+  token: ${INTERNAL_TOKEN}
+
+security:
+  secure-cookies: ${SECURE_COOKIES:false}
+  owner-cookie-max-age: ${OWNER_COOKIE_MAX_AGE:PT2H}
+
 management:
   endpoints:
     web:

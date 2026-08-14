@@ -13,11 +13,21 @@ public class SessionEntity {
     @Id
     private UUID id;
 
+    private String ownerTokenHash;
+
     public UUID getId() {
         return id;
     }
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public String getOwnerTokenHash() {
+        return ownerTokenHash;
+    }
+
+    public void setOwnerTokenHash(String ownerTokenHash) {
+        this.ownerTokenHash = ownerTokenHash;
     }
 }

@@ -12,7 +12,7 @@ React + TypeScript UI that starts a simulation and renders the board, status, an
 
 The UI never hardcodes `tictactoe-session`'s host or port, and there is no CORS layer — both
 `npm run dev` and the built container reach it through the **same relative `/api/` prefix**, per
-`docs/adr/0005-edge-routing-no-gateway.md`. `gameApiService.ts` calls `/api/sessions`, `/api/sessions/{id}/events`, etc.; something else always turns that into a real request:
+`docs/adr/0001-edge-routing-no-gateway.md`. `gameApiService.ts` calls `/api/sessions`, `/api/sessions/{id}/events`, etc.; something else always turns that into a real request:
 
 - **In the built container**, nginx (`nginx.conf`) proxies `/api/` to `tictactoe-session:8082`,
   stripping the prefix.

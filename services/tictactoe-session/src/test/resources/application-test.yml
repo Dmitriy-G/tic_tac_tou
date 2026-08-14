@@ -23,3 +23,6 @@ sse:
   # Long enough that the heartbeat's @Scheduled task never fires during a test run — avoids
   # background-thread noise/flakiness without disabling @EnableScheduling itself.
   heartbeat-interval-ms: 3600000
+
+internal:
+  token: test-internal-token

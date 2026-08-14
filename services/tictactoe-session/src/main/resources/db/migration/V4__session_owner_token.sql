@@ -1,0 +1,2 @@
+ALTER TABLE sessions ADD COLUMN owner_token_hash VARCHAR(64) NOT NULL DEFAULT '';
+ALTER TABLE sessions ALTER COLUMN owner_token_hash DROP DEFAULT;

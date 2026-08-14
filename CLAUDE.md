@@ -321,11 +321,17 @@ Non-root user, JRE-only runtime layer. `docker compose up` must bring up all fiv
 
 ## Out of Scope — do not add these
 
-Authentication/authorisation, API gateway, Eureka, Kafka or any message broker, MongoDB/Cassandra/any NoSQL store, GraphQL, CDC, Testcontainers, LLM-driven move strategies, batch simulation of multiple games per request, multi-tenancy.
+Authentication, API gateway, Eureka, Kafka or any message broker, MongoDB/Cassandra/any NoSQL store, GraphQL, CDC, Testcontainers, LLM-driven move strategies, batch simulation of multiple games per request, multi-tenancy.
+
+Authorisation is a partial exception: there is no user model and none is planned, but
+session-scoped authorization — an opaque owner token that gates `/simulate` on the session that
+created it — **is** in scope, per `docs/adr/0002-security-model.md`. Do not read this as an
+opening to add a user store, login flow, or `spring-boot-starter-security`; those remain out of
+scope for the reasons in that ADR's Rejected Alternatives.
 
 Each of these belongs in `docs/adr/` as a considered-and-rejected alternative with rationale — that scores better than implementing it. REST is a deliberate choice for this scope, not an omission. PostgreSQL (one instance per service, via Flyway-managed schemas) **is** in scope — see Storage above; don't reintroduce in-memory maps as the system of record for `games`, `sessions`, or `simulations`.
 
-"API gateway" above means a dedicated routing service/container — still out of scope. Putting the browser-facing API on the same origin as the UI does **not** need one: the frontend's own nginx (already serving the built assets) reverse-proxies `/api/*` to the session service, which is what removes CORS from application code entirely. See `docs/adr/0005-edge-routing-no-gateway.md`.
+"API gateway" above means a dedicated routing service/container — still out of scope. Putting the browser-facing API on the same origin as the UI does **not** need one: the frontend's own nginx (already serving the built assets) reverse-proxies `/api/*` to the session service, which is what removes CORS from application code entirely. See `docs/adr/0001-edge-routing-no-gateway.md`.
 
 ## Anti-patterns to avoid
 
@@ -336,6 +342,7 @@ Each of these belongs in `docs/adr/` as a considered-and-rejected alternative wi
 - `new Random()` inside a strategy
 - Storing move history in both services
 - Catching `Exception` and returning 200
+- A default/committed value for `INTERNAL_TOKEN` — startup must fail if it's unset, never fall back to something that works out of the box
 - Unbounded thread pool for simulations — use a bounded executor and reject with 429
 - `Thread.sleep` in tests
 

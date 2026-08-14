@@ -1,5 +1,6 @@
 package com.tictactoe.engine.controller;
 
+import com.tictactoe.engine.config.InternalTokenFilter;
 import com.tictactoe.engine.repository.GameJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +10,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -31,18 +33,24 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class GameControllerErrorHandlingTest {
 
+    private static final String TEST_TOKEN = "test-internal-token";
+
     @Autowired
     private MockMvc mockMvc;
 
     @MockBean
     private GameJpaRepository gameRepository;
 
+    private static MockHttpServletRequestBuilder authed(MockHttpServletRequestBuilder builder) {
+        return builder.header(InternalTokenFilter.HEADER, TEST_TOKEN);
+    }
+
     @Test
     void unknownGameIdReturns404GameNotFound() throws Exception {
         UUID gameId = UUID.randomUUID();
         when(gameRepository.findById(gameId)).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/games/{gameId}", gameId))
+        mockMvc.perform(authed(get("/games/{gameId}", gameId)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("GAME_NOT_FOUND"))
                 .andExpect(jsonPath("$.status").value(404));
@@ -50,14 +58,14 @@ class GameControllerErrorHandlingTest {
 
     @Test
     void nonUuidGameIdReturns400InvalidGameId() throws Exception {
-        mockMvc.perform(get("/games/{gameId}", "not-a-uuid"))
+        mockMvc.perform(authed(get("/games/{gameId}", "not-a-uuid")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_GAME_ID"));
     }
 
     @Test
     void malformedJsonBodyReturns400MalformedRequest() throws Exception {
-        mockMvc.perform(post("/games/{gameId}/move", UUID.randomUUID())
+        mockMvc.perform(authed(post("/games/{gameId}/move", UUID.randomUUID()))
                         .contentType("application/json")
                         .content("{not-json"))
                 .andExpect(status().isBadRequest())
@@ -66,7 +74,7 @@ class GameControllerErrorHandlingTest {
 
     @Test
     void positionOutOfRangeReturns400ValidationErrorWithAFieldError() throws Exception {
-        mockMvc.perform(post("/games/{gameId}/move", UUID.randomUUID())
+        mockMvc.perform(authed(post("/games/{gameId}/move", UUID.randomUUID()))
                         .contentType("application/json")
                         .content("{\"symbol\":\"X\",\"position\":42}"))
                 .andExpect(status().isBadRequest())
@@ -76,7 +84,7 @@ class GameControllerErrorHandlingTest {
 
     @Test
     void nullSymbolReturns400ValidationError() throws Exception {
-        mockMvc.perform(post("/games/{gameId}/move", UUID.randomUUID())
+        mockMvc.perform(authed(post("/games/{gameId}/move", UUID.randomUUID()))
                         .contentType("application/json")
                         .content("{\"symbol\":null,\"position\":0}"))
                 .andExpect(status().isBadRequest())
@@ -85,7 +93,7 @@ class GameControllerErrorHandlingTest {
 
     @Test
     void getOnAPostOnlyPathReturns405() throws Exception {
-        mockMvc.perform(get("/games/{gameId}/move", UUID.randomUUID()))
+        mockMvc.perform(authed(get("/games/{gameId}/move", UUID.randomUUID())))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
     }
@@ -95,7 +103,7 @@ class GameControllerErrorHandlingTest {
         UUID gameId = UUID.randomUUID();
         when(gameRepository.findById(any())).thenThrow(new DataAccessResourceFailureException("db unreachable"));
 
-        mockMvc.perform(get("/games/{gameId}", gameId))
+        mockMvc.perform(authed(get("/games/{gameId}", gameId)))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("DATABASE_ERROR"));
     }
@@ -105,12 +113,34 @@ class GameControllerErrorHandlingTest {
         UUID gameId = UUID.randomUUID();
         when(gameRepository.findById(gameId)).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/games/{gameId}", gameId))
+        mockMvc.perform(authed(get("/games/{gameId}", gameId)))
                 .andExpect(jsonPath("$.timestamp").exists())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.code").value("GAME_NOT_FOUND"))
                 .andExpect(jsonPath("$.message").exists())
                 .andExpect(jsonPath("$.path").value("/games/" + gameId))
                 .andExpect(jsonPath("$.traceId").exists());
+    }
+
+    @Test
+    void missingInternalTokenReturns401Unauthorized() throws Exception {
+        mockMvc.perform(get("/games/{gameId}", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.traceId").exists());
+    }
+
+    @Test
+    void wrongInternalTokenReturns401Unauthorized() throws Exception {
+        mockMvc.perform(get("/games/{gameId}", UUID.randomUUID())
+                        .header(InternalTokenFilter.HEADER, "not-the-right-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void actuatorHealthRequiresNoInternalToken() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk());
     }
 }

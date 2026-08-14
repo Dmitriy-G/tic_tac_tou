@@ -31,6 +31,7 @@ class PostgresSessionRepositoryTest {
         UUID sessionId = UUID.randomUUID();
         SessionEntity session = new SessionEntity();
         session.setId(sessionId);
+        session.setOwnerTokenHash("test-owner-token-hash");
 
         sessionRepository.save(session);
         Optional<SessionEntity> reloaded = sessionRepository.findById(sessionId);
@@ -49,6 +50,7 @@ class PostgresSessionRepositoryTest {
         UUID sessionId = UUID.randomUUID();
         SessionEntity session = new SessionEntity();
         session.setId(sessionId);
+        session.setOwnerTokenHash("test-owner-token-hash");
         sessionRepository.save(session);
 
         SimulationEntity simulation = new SimulationEntity();

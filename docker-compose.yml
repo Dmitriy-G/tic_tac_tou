@@ -5,6 +5,7 @@ services:
       POSTGRES_DB: engine_db
       POSTGRES_USER: engine
       POSTGRES_PASSWORD: engine
+      #TODO: port need to local run. Separate yml
     ports:
       - "5433:5432"
     volumes:
@@ -21,6 +22,7 @@ services:
       POSTGRES_DB: session_db
       POSTGRES_USER: session
       POSTGRES_PASSWORD: session
+      #TODO: port need to local run. Separate yml
     ports:
       - "5434:5432"
     volumes:
@@ -35,15 +37,21 @@ services:
     build:
       context: .
       dockerfile: services/tictactoe-engine/Dockerfile
-    ports:
-      - "8081:8081"
+    expose:
+      - "8081"
     environment:
       ENGINE_DB_URL: jdbc:postgresql://engine-db:5432/engine_db
       ENGINE_DB_USERNAME: engine
       ENGINE_DB_PASSWORD: engine
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-only-not-a-secret}
     depends_on:
       engine-db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q UP"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   tictactoe-session:
     build:
@@ -56,9 +64,10 @@ services:
       SESSION_DB_URL: jdbc:postgresql://session-db:5432/session_db
       SESSION_DB_USERNAME: session
       SESSION_DB_PASSWORD: session
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-only-not-a-secret}
     depends_on:
       tictactoe-engine:
-        condition: service_started
+        condition: service_healthy
       session-db:
         condition: service_healthy
     healthcheck:
@@ -75,6 +84,18 @@ services:
     depends_on:
       tictactoe-session:
         condition: service_healthy
+
+  # Republishes the engine's port on demand, for Swagger UI / manual API exploration:
+  #   docker compose --profile debug up -d
+  #   curl http://localhost:8081/actuator/health
+  engine-debug-ports:
+    image: alpine/socat
+    profiles: ["debug"]
+    command: TCP-LISTEN:8081,fork,reuseaddr TCP:tictactoe-engine:8081
+    ports:
+      - "8081:8081"
+    depends_on:
+      - tictactoe-engine
 
 volumes:
   engine-db-data:

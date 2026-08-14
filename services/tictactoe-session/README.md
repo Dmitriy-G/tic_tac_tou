@@ -23,7 +23,10 @@ Manages game session lifecycle and automates gameplay by generating moves for bo
 | `SIMULATION_STRATEGY_O` | `SIMPLE` | Move strategy for `O`: `SIMPLE` (random empty cell) or `ADVANCED` (not implemented yet) |
 | `ENGINE_RETRY_MAX_ATTEMPTS` | `3` | Max attempts (including the first) for a call to the engine, retried only when it fails with `ENGINE_UNAVAILABLE` |
 | `ENGINE_RETRY_INITIAL_BACKOFF_MS` | `200` | Base backoff between retries (Resilience4j exponential backoff with jitter) |
-| `SSE_HEARTBEAT_INTERVAL_MS` | `15000` | Interval between `:ping` SSE comment frames per subscriber — keeps idle timers (this service's, any reverse proxy's, the browser's) from expiring during a quiet stretch. Below the smallest timeout in the path; see `docs/adr/0005-edge-routing-no-gateway.md` |
+| `SSE_HEARTBEAT_INTERVAL_MS` | `15000` | Interval between `:ping` SSE comment frames per subscriber — keeps idle timers (this service's, any reverse proxy's, the browser's) from expiring during a quiet stretch. Below the smallest timeout in the path; see `docs/adr/0001-edge-routing-no-gateway.md` |
+| `INTERNAL_TOKEN` | *(none — required)* | Shared secret sent as `X-Internal-Token` on every call to the engine. No default; startup fails if unset. See `docs/adr/0002-security-model.md` |
+| `SECURE_COOKIES` | `false` | Sets the `Secure` attribute on the session-owner cookie; enable when served over HTTPS |
+| `OWNER_COOKIE_MAX_AGE` | `PT2H` | `Duration` string for how long the owner cookie stays valid |
 
 ## Running
 
@@ -47,13 +50,13 @@ The service starts on port `8082` (see `src/main/resources/application.yml`).
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `POST` | `/sessions` | Create a new game session |
-| `POST` | `/sessions/{sessionId}/simulate` | Trigger the automated simulation of a game until it concludes (async) |
-| `GET` | `/sessions/{sessionId}` | Retrieve session details, including game state and move history |
-| `GET` | `/sessions/{sessionId}/events` | Server-Sent Events stream of board updates and status |
+| `POST` | `/sessions` | Create a new game session. Response body includes `ownerToken` (once, only here) and the response also sets it as an `HttpOnly` cookie |
+| `POST` | `/sessions/{sessionId}/simulate` | Trigger the automated simulation of a game until it concludes (async). Owner-only — requires the `tictactoe_session_owner` cookie from creation, else `403 NOT_SESSION_OWNER` |
+| `GET` | `/sessions/{sessionId}` | Retrieve session details, including game state and move history. Open to anyone with the id |
+| `GET` | `/sessions/{sessionId}/events` | Server-Sent Events stream of board updates and status. Open to anyone with the id |
 | `POST` | `/sessions/{sessionId}/cancel` | Cancel a running simulation |
 
-`sessionId` **is** the `gameId` returned by the engine (single UUID, one session = one game). See the root `CLAUDE.md` for the full request/response contract and status code table.
+`sessionId` **is** the `gameId` returned by the engine (single UUID, one session = one game). See the root `CLAUDE.md` for the full request/response contract and status code table, and `docs/adr/0002-security-model.md` for the ownership model — one owner (holds the token, can simulate), many observers (hold only the id, can watch).
 
 ## API documentation
 
@@ -64,7 +67,7 @@ OpenAPI JSON: `http://localhost:8082/v3/api-docs`
 
 `session_db` (own PostgreSQL database, never shared with the engine) holds two tables, both managed by Flyway (`src/main/resources/db/migration/V1__create_sessions_and_simulations_tables.sql`):
 
-- `sessions (id UUID)` — a durable identity/anchor row created once per session. It intentionally does **not** store `gameId` (identical to `id` — `sessionId` **is** `gameId`), the board (the engine's authoritative copy is never duplicated here), or move history (would duplicate history the engine already owns — see the root `CLAUDE.md` anti-patterns).
+- `sessions (id UUID, owner_token_hash VARCHAR(64))` — a durable identity/anchor row created once per session. It intentionally does **not** store `gameId` (identical to `id` — `sessionId` **is** `gameId`), the board (the engine's authoritative copy is never duplicated here), or move history (would duplicate history the engine already owns — see the root `CLAUDE.md` anti-patterns). `owner_token_hash` (V4 migration) is a SHA-256 hash of the session's owner token — the raw token is never persisted, only returned once at creation; see `docs/adr/0002-security-model.md`.
 - `simulations (id UUID, session_id UUID FK -> sessions, errors_count INT, started_at TIMESTAMP, finished_at TIMESTAMP, status VARCHAR, running_session_id UUID, error_code VARCHAR, error_message VARCHAR)` — one row per `/simulate` run, the durable audit trail of run outcomes. `SimulationStarter`/`SimulationStateWriter` write and update it as a run progresses; `error_code`/`error_message` (V3 migration) are set when a run ends in `FAILED`. `running_session_id` mirrors `session_id` only while `status = 'IN_PROGRESS'` and is otherwise `null`; a unique index on it (V2 migration) is what actually stops two concurrent `/simulate` calls for the same session from both starting — H2 (used in tests) has no partial-index support, so this mirror-column trick gives the same guarantee a Postgres partial index would, portably.
 
 A session's *live* board/move history while a simulation is running is process-local state, held in `SessionStateStore` (`Map<String, LiveState>`, mutated only through `compute()`) — never written to `session_db`, per the root `CLAUDE.md`. `GET /sessions/{id}` is built entirely from this store, which is what makes the SSE stream an optimisation rather than a dependency: `SimulationEventPublisher` updates the store and publishes the SSE event from the same call, so both are always in sync. On a fresh JVM (e.g. after a restart) the store is empty and a session reads back as `CREATED` with an empty board.
@@ -77,7 +80,8 @@ A session's *live* board/move history while a simulation is running is process-l
 
 `SessionExceptionHandler` (`@RestControllerAdvice`) extends `BaseGlobalExceptionHandler` from `tictactoe-common` — see the root README's error-code table and `docs/adr/0003-error-channels.md` / `docs/adr/0004-downstream-status-mapping.md`.
 
-- `SessionNotFoundException` → `404 SESSION_NOT_FOUND` on `GET`/`simulate`/`events` for an unknown session.
+- `SessionNotFoundException` → `404 SESSION_NOT_FOUND` on `GET`/`simulate`/`events` for an unknown session. Existence is checked before ownership, so a missing session is never reported as a permissions problem.
+- `NotSessionOwnerException` → `403 NOT_SESSION_OWNER` when `/simulate` is called without the cookie set on that session's `POST /sessions`, or with a different session's cookie.
 - `SimulationStarter.start` → `409 SIMULATION_ALREADY_RUNNING` if a simulation for the session is already `IN_PROGRESS`; the check is a fast-path repository query backed by the `running_session_id` unique index above as the actual race guard, so two concurrent `/simulate` calls always produce exactly one `202` and one `409`.
 - `GameEngineClientImpl` classifies every engine-call failure into a typed exception — never a downstream status pass-through — and retries only `EngineUnavailableException` (timeout/connection-refused/5xx), up to `ENGINE_RETRY_MAX_ATTEMPTS` with exponential backoff and jitter. A move is idempotent per `(gameId, symbol, position)`, so retrying after a timeout is safe.
 - `SimulationRunner.run` guarantees a session is never left `IN_PROGRESS`: on any `RuntimeException` it persists a `FAILED` row with `error_code`/`error_message`, publishes a `failure` SSE event, and always completes the SSE emitter in a `finally` — persist, notify, release, in that order.
