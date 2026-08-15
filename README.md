@@ -68,6 +68,14 @@ docker compose --profile debug up -d
 curl http://localhost:8081/actuator/health
 ```
 
+Neither database publishes a port, even under the debug profile — `psql` doesn't need one, since it
+can run inside the already-running container, on the Compose network:
+
+```bash
+docker compose exec engine-db psql -U engine engine_db
+docker compose exec session-db psql -U session session_db
+```
+
 ## Running each service individually
 
 The two Java services share a root `pom.xml` aggregator.
@@ -131,27 +139,21 @@ is the `X-Correlation-Id` correlation id, echoed on the response header too.
 | --- | --- | --- |
 | `VALIDATION_ERROR` | 400 | Request body/params failed `@Valid` constraints |
 | `MALFORMED_REQUEST` | 400 | Body isn't valid JSON, or another `IllegalArgumentException` |
-| `NOT_FOUND` | 404 | Generic not-found |
 | `UNAUTHORIZED` | 401 | Engine: missing/invalid `X-Internal-Token` (session→engine boundary only) |
 | `NOT_SESSION_OWNER` | 403 | Session: `/simulate` called without the creating session's owner cookie |
 | `METHOD_NOT_ALLOWED` | 405 | Wrong HTTP method for the path |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | Wrong `Content-Type` |
-| `CONFLICT` | 409 | Generic conflict |
-| `TOO_MANY_REQUESTS` | 429 | Generic rate limit |
 | `INTERNAL_ERROR` | 500 | Unexpected exception (catch-all) |
 | `GAME_NOT_FOUND` | 404 | Engine: unknown `gameId` |
-| `GAME_ALREADY_EXISTS` | 409 | Engine: reserved, not yet used |
 | `INVALID_GAME_ID` | 400 | Engine: `gameId` path variable isn't a UUID |
 | `SESSION_NOT_FOUND` | 404 | Session: unknown `sessionId` |
-| `INVALID_SESSION_ID` | 400 | Session: reserved, not yet used |
+| `INVALID_SESSION_ID` | 400 | Session: `sessionId` path variable isn't a UUID |
 | `SIMULATION_ALREADY_RUNNING` | 409 | Session: `/simulate` called while one is already running |
-| `SESSION_ALREADY_COMPLETED` | 409 | Session: reserved, not yet used |
-| `SIMULATION_LIMIT_REACHED` | 429 | Session: reserved, not yet used |
+| `SESSION_ALREADY_COMPLETED` | 409 | Session: `/simulate` called on a session that already reached a terminal state |
 | `ENGINE_UNAVAILABLE` | 503 | Session→engine: timeout / connection refused / 5xx — retried |
 | `ENGINE_STATE_LOST` | 502 | Session→engine: engine returned 404 for a game the session expects to exist |
 | `ENGINE_CONTRACT_VIOLATION` | 500 | Session→engine: engine returned 400 — the session's bug, not the caller's |
 | `ENGINE_BAD_RESPONSE` | 502 | Session→engine: unparseable or incomplete response |
-| `SIMULATION_TIMEOUT` | 500 | Session: reserved, not yet used |
 | `DATABASE_ERROR` | 503 | Either service: repository threw `DataAccessException` |
 
 ## Structure

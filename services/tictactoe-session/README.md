@@ -19,8 +19,8 @@ Manages game session lifecycle and automates gameplay by generating moves for bo
 | `ENGINE_CONNECT_TIMEOUT_MS` | `2000` | Connect timeout for calls to the engine |
 | `ENGINE_READ_TIMEOUT_MS` | `3000` | Read timeout for calls to the engine |
 | `SIMULATION_MOVE_DELAY_MS` | `500` | Delay between simulated moves, so the UI shows progression (tests set this to `0`) |
-| `SIMULATION_STRATEGY_X` | `SIMPLE` | Move strategy for `X`: `SIMPLE` (random empty cell) or `ADVANCED` (not implemented yet) |
-| `SIMULATION_STRATEGY_O` | `SIMPLE` | Move strategy for `O`: `SIMPLE` (random empty cell) or `ADVANCED` (not implemented yet) |
+| `SIMULATION_STRATEGY_X` | `SIMPLE` | Move strategy for `X`: `SIMPLE` (random empty cell) or `ADVANCED` (win &gt; block &gt; center &gt; corner &gt; side) |
+| `SIMULATION_STRATEGY_O` | `SIMPLE` | Move strategy for `O`: `SIMPLE` (random empty cell) or `ADVANCED` (win &gt; block &gt; center &gt; corner &gt; side) |
 | `ENGINE_RETRY_MAX_ATTEMPTS` | `3` | Max attempts (including the first) for a call to the engine, retried only when it fails with `ENGINE_UNAVAILABLE` |
 | `ENGINE_RETRY_INITIAL_BACKOFF_MS` | `200` | Base backoff between retries (Resilience4j exponential backoff with jitter) |
 | `SSE_HEARTBEAT_INTERVAL_MS` | `15000` | Interval between `:ping` SSE comment frames per subscriber — keeps idle timers (this service's, any reverse proxy's, the browser's) from expiring during a quiet stretch. Below the smallest timeout in the path; see `docs/adr/0001-edge-routing-no-gateway.md` |
@@ -74,7 +74,7 @@ A session's *live* board/move history while a simulation is running is process-l
 
 ## Status
 
-`simulate()` drives real gameplay: it creates the game at the engine (`gameId` == `sessionId`), then alternates `X`/`O` moves — the cell for each move chosen by the `MoveStrategy` configured for that symbol (`simulation.strategy.x` / `simulation.strategy.o`) — publishing an SSE event and updating `SessionStateStore` after every move, until the engine reports a terminal status or the 9-move hard cap is hit. Only the `SIMPLE` strategy (`RandomMoveStrategy`, a uniformly random empty cell) is implemented; `ADVANCED` (`RuleBasedMoveStrategy`) is still a skeleton (`UnsupportedOperationException`). `cancel()` is not implemented yet.
+`simulate()` drives real gameplay: it creates the game at the engine (`gameId` == `sessionId`), then alternates `X`/`O` moves — the cell for each move chosen by the `MoveStrategy` configured for that symbol (`simulation.strategy.x` / `simulation.strategy.o`) — publishing an SSE event and updating `SessionStateStore` after every move, until the engine reports a terminal status or the 9-move hard cap is hit. Both strategies are implemented: `SIMPLE` (`RandomMoveStrategy`) picks a uniformly random empty cell; `ADVANCED` (`RuleBasedMoveStrategy`) is deterministic, following win &gt; block &gt; center &gt; corner &gt; side. `cancel()` is not implemented yet.
 
 ## Error handling
 

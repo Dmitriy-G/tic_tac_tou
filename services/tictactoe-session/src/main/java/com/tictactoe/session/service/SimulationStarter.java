@@ -3,15 +3,18 @@ package com.tictactoe.session.service;
 import com.tictactoe.common.domain.GameState;
 import com.tictactoe.session.config.CorrelationIdFilter;
 import com.tictactoe.session.entity.SimulationEntity;
+import com.tictactoe.session.exception.SessionAlreadyCompletedException;
 import com.tictactoe.session.exception.SessionNotFoundException;
 import com.tictactoe.session.exception.SimulationAlreadyRunningException;
 import com.tictactoe.session.repository.SessionJpaRepository;
 import com.tictactoe.session.repository.SimulationJpaRepository;
+import com.tictactoe.session.util.SessionIdUtils;
 import org.slf4j.MDC;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -33,13 +36,17 @@ public class SimulationStarter {
     }
 
     void start(String sessionId) {
-        UUID sessionUuid = UUID.fromString(sessionId);
+        UUID sessionUuid = SessionIdUtils.toUuid(sessionId);
 
         if (!sessionRepository.existsById(sessionUuid)) {
             throw new SessionNotFoundException(sessionId);
         }
         if (simulationRepository.existsBySessionIdAndStatus(sessionUuid, GameState.IN_PROGRESS)) {
             throw new SimulationAlreadyRunningException(sessionId);
+        }
+        List<SimulationEntity> previousRuns = simulationRepository.findBySessionIdOrderByStartedAtDesc(sessionUuid);
+        if (!previousRuns.isEmpty() && previousRuns.get(0).getStatus() != GameState.IN_PROGRESS) {
+            throw new SessionAlreadyCompletedException(sessionId);
         }
 
         SimulationEntity simulation = new SimulationEntity();

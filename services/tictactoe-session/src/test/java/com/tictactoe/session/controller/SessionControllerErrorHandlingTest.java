@@ -72,6 +72,20 @@ class SessionControllerErrorHandlingTest {
     }
 
     @Test
+    void malformedSessionIdOnGetReturns400InvalidSessionId() throws Exception {
+        mockMvc.perform(get("/sessions/{sessionId}", "not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_SESSION_ID"));
+    }
+
+    @Test
+    void malformedSessionIdOnSimulateReturns400InvalidSessionId() throws Exception {
+        mockMvc.perform(post("/sessions/{sessionId}/simulate", "not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_SESSION_ID"));
+    }
+
+    @Test
     void simulateWithoutOwnerCookieReturns403NotSessionOwner() throws Exception {
         CreatedSession session = createSession();
 

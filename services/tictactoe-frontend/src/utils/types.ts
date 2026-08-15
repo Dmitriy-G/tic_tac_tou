@@ -9,7 +9,7 @@ export interface WinResult {
   line: number[]
 }
 
-export type GameOutcome = 'X_WON' | 'O_WON' | 'DRAW' | 'FAILED' | 'CANCELLED'
+export type GameOutcome = 'X_WON' | 'O_WON' | 'DRAW' | 'FAILED'
 
 export type SessionStatus = 'CREATED' | 'IN_PROGRESS' | GameOutcome
 
@@ -40,11 +40,9 @@ export interface SessionResponse {
   errorMessage: string | null
 }
 
-export type SessionEventType = 'MOVE' | 'COMPLETED' | 'FAILED'
-
 export interface SessionEvent {
   sessionId: string
-  type: SessionEventType
+  type: 'MOVE' | 'COMPLETED' | 'FAILED'
   board: string[] | null
   stepStatus: StepStatus | null
   winner: GameOutcome | null

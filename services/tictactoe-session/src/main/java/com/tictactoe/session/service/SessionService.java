@@ -6,6 +6,7 @@ import com.tictactoe.session.exception.NotSessionOwnerException;
 import com.tictactoe.session.exception.SessionNotFoundException;
 import com.tictactoe.session.repository.SessionJpaRepository;
 import com.tictactoe.session.sse.SseEmitterRegistry;
+import com.tictactoe.session.util.SessionIdUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -46,7 +47,7 @@ public class SessionService {
     }
 
     public void simulate(String sessionId, String ownerToken) {
-        SessionEntity session = sessionRepository.findById(UUID.fromString(sessionId))
+        SessionEntity session = sessionRepository.findById(SessionIdUtils.toUuid(sessionId))
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
         if (!ownerTokenService.matches(ownerToken, session.getOwnerTokenHash())) {
             throw new NotSessionOwnerException(sessionId);
@@ -55,7 +56,7 @@ public class SessionService {
     }
 
     public SessionResponse getSession(String sessionId) {
-        if (!sessionRepository.existsById(UUID.fromString(sessionId))) {
+        if (!sessionRepository.existsById(SessionIdUtils.toUuid(sessionId))) {
             throw new SessionNotFoundException(sessionId);
         }
         return toResponse(sessionId, null);

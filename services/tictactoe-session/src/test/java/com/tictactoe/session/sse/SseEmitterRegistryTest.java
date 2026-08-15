@@ -25,8 +25,8 @@ class SseEmitterRegistryTest {
 
     @Test
     void aSecondSubscriberDoesNotEvictTheFirst() {
-        RecordingEmitter first = (RecordingEmitter) registry.register("session-1");
-        RecordingEmitter second = (RecordingEmitter) registry.register("session-1");
+        RecordingEmitter first = (RecordingEmitter) registry.register("session-1", null);
+        RecordingEmitter second = (RecordingEmitter) registry.register("session-1", null);
 
         registry.publish("session-1", moveEvent());
 
@@ -36,9 +36,9 @@ class SseEmitterRegistryTest {
 
     @Test
     void anIoExceptionFromOneEmitterDoesNotStopThePublishToOthers() {
-        RecordingEmitter failing = (RecordingEmitter) registry.register("session-1");
+        RecordingEmitter failing = (RecordingEmitter) registry.register("session-1", null);
         failing.failOnSend = true;
-        RecordingEmitter healthy = (RecordingEmitter) registry.register("session-1");
+        RecordingEmitter healthy = (RecordingEmitter) registry.register("session-1", null);
 
         assertThatCode(() -> registry.publish("session-1", moveEvent())).doesNotThrowAnyException();
 
@@ -52,7 +52,7 @@ class SseEmitterRegistryTest {
 
     @Test
     void completeReleasesAllSubscribersForTheSession() {
-        RecordingEmitter emitter = (RecordingEmitter) registry.register("session-1");
+        RecordingEmitter emitter = (RecordingEmitter) registry.register("session-1", null);
 
         registry.complete("session-1");
 
@@ -61,7 +61,7 @@ class SseEmitterRegistryTest {
 
     @Test
     void publishingAFailureEventDoesNotThrow() {
-        registry.register("session-1");
+        registry.register("session-1", null);
 
         assertThatCode(() -> registry.publish("session-1", failureEvent())).doesNotThrowAnyException();
     }
@@ -96,8 +96,8 @@ class SseEmitterRegistryTest {
 
     @Test
     void heartbeatSendsACommentFrameToEverySubscriberAndReapsDeadOnes() {
-        RecordingEmitter healthy = (RecordingEmitter) registry.register("session-1");
-        RecordingEmitter dead = (RecordingEmitter) registry.register("session-1");
+        RecordingEmitter healthy = (RecordingEmitter) registry.register("session-1", null);
+        RecordingEmitter dead = (RecordingEmitter) registry.register("session-1", null);
         dead.failOnSend = true;
 
         assertThatCode(registry::heartbeat).doesNotThrowAnyException();

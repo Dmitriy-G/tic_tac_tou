@@ -62,10 +62,6 @@ public class SimulationEntity {
         this.errorsCount = errorsCount;
     }
 
-    public Instant getStartedAt() {
-        return startedAt;
-    }
-
     public void setStartedAt(Instant startedAt) {
         this.startedAt = startedAt;
     }

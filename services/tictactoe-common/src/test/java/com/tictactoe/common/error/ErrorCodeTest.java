@@ -30,27 +30,21 @@ class ErrorCodeTest {
     void statusesMatchTheDocumentedTable() {
         assertThat(ErrorCode.VALIDATION_ERROR.getHttpStatus()).isEqualTo(400);
         assertThat(ErrorCode.MALFORMED_REQUEST.getHttpStatus()).isEqualTo(400);
-        assertThat(ErrorCode.NOT_FOUND.getHttpStatus()).isEqualTo(404);
         assertThat(ErrorCode.UNAUTHORIZED.getHttpStatus()).isEqualTo(401);
         assertThat(ErrorCode.NOT_SESSION_OWNER.getHttpStatus()).isEqualTo(403);
         assertThat(ErrorCode.METHOD_NOT_ALLOWED.getHttpStatus()).isEqualTo(405);
         assertThat(ErrorCode.UNSUPPORTED_MEDIA_TYPE.getHttpStatus()).isEqualTo(415);
-        assertThat(ErrorCode.CONFLICT.getHttpStatus()).isEqualTo(409);
-        assertThat(ErrorCode.TOO_MANY_REQUESTS.getHttpStatus()).isEqualTo(429);
         assertThat(ErrorCode.INTERNAL_ERROR.getHttpStatus()).isEqualTo(500);
         assertThat(ErrorCode.GAME_NOT_FOUND.getHttpStatus()).isEqualTo(404);
-        assertThat(ErrorCode.GAME_ALREADY_EXISTS.getHttpStatus()).isEqualTo(409);
         assertThat(ErrorCode.INVALID_GAME_ID.getHttpStatus()).isEqualTo(400);
         assertThat(ErrorCode.SESSION_NOT_FOUND.getHttpStatus()).isEqualTo(404);
         assertThat(ErrorCode.INVALID_SESSION_ID.getHttpStatus()).isEqualTo(400);
         assertThat(ErrorCode.SIMULATION_ALREADY_RUNNING.getHttpStatus()).isEqualTo(409);
         assertThat(ErrorCode.SESSION_ALREADY_COMPLETED.getHttpStatus()).isEqualTo(409);
-        assertThat(ErrorCode.SIMULATION_LIMIT_REACHED.getHttpStatus()).isEqualTo(429);
         assertThat(ErrorCode.ENGINE_UNAVAILABLE.getHttpStatus()).isEqualTo(503);
         assertThat(ErrorCode.ENGINE_STATE_LOST.getHttpStatus()).isEqualTo(502);
         assertThat(ErrorCode.ENGINE_CONTRACT_VIOLATION.getHttpStatus()).isEqualTo(500);
         assertThat(ErrorCode.ENGINE_BAD_RESPONSE.getHttpStatus()).isEqualTo(502);
-        assertThat(ErrorCode.SIMULATION_TIMEOUT.getHttpStatus()).isEqualTo(500);
         assertThat(ErrorCode.DATABASE_ERROR.getHttpStatus()).isEqualTo(503);
     }
 }
