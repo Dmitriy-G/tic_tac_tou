@@ -91,6 +91,30 @@ services:
     depends_on:
       - tictactoe-engine
 
+  # Republishes the databases on demand, for a SQL client (DataGrip, DBeaver, psql):
+  #   docker compose --profile debug up -d
+  #   psql -h localhost -p 5433 -U engine engine_db
+  # Ports match the pre-ADR-0002 published ports, so saved client connections still work.
+  engine-db-debug-ports:
+    image: alpine/socat
+    profiles: ["debug"]
+    command: TCP-LISTEN:5432,fork,reuseaddr TCP:engine-db:5432
+    ports:
+      - "5433:5432"
+    depends_on:
+      engine-db:
+        condition: service_healthy
+
+  session-db-debug-ports:
+    image: alpine/socat
+    profiles: ["debug"]
+    command: TCP-LISTEN:5432,fork,reuseaddr TCP:session-db:5432
+    ports:
+      - "5434:5432"
+    depends_on:
+      session-db:
+        condition: service_healthy
+
 volumes:
   engine-db-data:
   session-db-data:

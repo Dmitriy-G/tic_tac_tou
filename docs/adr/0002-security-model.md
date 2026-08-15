@@ -177,7 +177,10 @@ certificate generation and rotation for a two-container Compose file.
 ## Consequences
 
 - The engine and both databases are no longer reachable from the host. Manual API exploration goes
-  through the session service, `docker compose exec`, or a documented debug override.
+  through the session service, `docker compose exec`, or a documented debug override. That debug
+  override (`docker compose --profile debug up -d`) now republishes both databases on `5433`/`5434`
+  via `socat` sidecars alongside the engine's `8081`, so a SQL client can connect on demand without
+  reintroducing the ports on a normal `docker compose up`.
 - `INTERNAL_TOKEN` must be set for the system to start. Deliberate: a default that works out of the
   box is a default that ships to production. `application-test.yml` in both services needs a fixed
   value, and the Compose file needs it on both services.

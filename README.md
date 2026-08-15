@@ -61,15 +61,29 @@ curl -s http://localhost:5173/api/sessions/$SID   # GET is open, no cookie neede
 
 The engine and both databases are reachable only from inside the Compose network by default. To
 inspect them manually (e.g. the engine's Swagger UI), bring up the debug profile, which
-republishes `8081` via a `socat` sidecar:
+republishes the engine on `8081` and both databases on `5433`/`5434` via `socat` sidecars:
 
 ```bash
 docker compose --profile debug up -d
 curl http://localhost:8081/actuator/health
 ```
 
-Neither database publishes a port, even under the debug profile — `psql` doesn't need one, since it
-can run inside the already-running container, on the Compose network:
+The same debug profile also republishes both databases, for a SQL client (DataGrip, DBeaver, or
+`psql` from the host):
+
+| Database | Host | Port | User | Password |
+| --- | --- | --- | --- | --- |
+| `engine_db` | `localhost` | `5433` | `engine` | `engine` |
+| `session_db` | `localhost` | `5434` | `session` | `session` |
+
+```bash
+docker compose --profile debug up -d
+psql -h localhost -p 5433 -U engine engine_db
+
+docker compose --profile debug down    # closes the debug ports again; services keep running
+```
+
+If you only need a quick query, no port is required at all — `psql` can run inside the container:
 
 ```bash
 docker compose exec engine-db psql -U engine engine_db
