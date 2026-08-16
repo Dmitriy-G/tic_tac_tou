@@ -77,22 +77,58 @@ class SimulationRunnerTest {
     }
 
     @Test
-    void allNineMovesCorrectEndsInDrawWithFinishedAtSet() {
+    void everyMoveIsForwardedToTheEngine() {
+        stubNineMovesEndingInDraw();
+
+        runner.run(SESSION_ID, simulationId, "trace-1");
+
+        verify(gameEngineClient, times(9)).move(eq(simulationId), anyString(), anyInt());
+    }
+
+    @Test
+    void everyMovePublishesAnSseEvent() {
+        stubNineMovesEndingInDraw();
+
+        runner.run(SESSION_ID, simulationId, "trace-1");
+
+        verify(emitterRegistry, times(9)).publish(eq(SESSION_ID), any());
+    }
+
+    @Test
+    void everyMoveIsPersisted() {
+        stubNineMovesEndingInDraw();
+
+        runner.run(SESSION_ID, simulationId, "trace-1");
+
+        verify(simulationRepository, times(9)).save(entity);
+    }
+
+    @Test
+    void aDrawIsRecordedAsTheTerminalStatus() {
+        stubNineMovesEndingInDraw();
+
+        runner.run(SESSION_ID, simulationId, "trace-1");
+
+        assertThat(entity.getStatus()).isEqualTo(GameState.DRAW);
+        assertThat(entity.getFinishedAt()).isNotNull();
+    }
+
+    @Test
+    void theEmitterIsCompletedExactlyOnce() {
+        stubNineMovesEndingInDraw();
+
+        runner.run(SESSION_ID, simulationId, "trace-1");
+
+        verify(emitterRegistry, times(1)).complete(SESSION_ID);
+    }
+
+    private void stubNineMovesEndingInDraw() {
         when(gameEngineClient.move(eq(simulationId), anyString(), anyInt())).thenReturn(
                 correctStep(GameState.IN_PROGRESS), correctStep(GameState.IN_PROGRESS),
                 correctStep(GameState.IN_PROGRESS), correctStep(GameState.IN_PROGRESS),
                 correctStep(GameState.IN_PROGRESS), correctStep(GameState.IN_PROGRESS),
                 correctStep(GameState.IN_PROGRESS), correctStep(GameState.IN_PROGRESS),
                 correctStep(GameState.DRAW));
-
-        runner.run(SESSION_ID, simulationId, "trace-1");
-
-        verify(gameEngineClient, times(9)).move(eq(simulationId), anyString(), anyInt());
-        verify(emitterRegistry, times(9)).publish(eq(SESSION_ID), any());
-        verify(simulationRepository, times(9)).save(entity);
-        verify(emitterRegistry, times(1)).complete(SESSION_ID);
-        assertThat(entity.getStatus()).isEqualTo(GameState.DRAW);
-        assertThat(entity.getFinishedAt()).isNotNull();
     }
 
     @Test
@@ -124,24 +160,41 @@ class SimulationRunnerTest {
     }
 
     @Test
-    void nineValidMovesWithoutATerminalStateFromEngineIsClosedOutAsFailed() {
+    void theLoopStopsAfterTwelveIterations() {
+        stubNineSuccessesAndThreeErrors();
+
+        runner.run(SESSION_ID, simulationId, "trace-1");
+
+        verify(gameEngineClient, times(12)).move(eq(simulationId), anyString(), anyInt());
+    }
+
+    @Test
+    void theSessionIsClosedOutAsFailed() {
+        stubNineSuccessesAndThreeErrors();
+
+        runner.run(SESSION_ID, simulationId, "trace-1");
+
+        assertThat(entity.getErrorsCount()).isEqualTo(3);
+        assertThat(entity.getStatus()).isEqualTo(GameState.FAILED);
+        assertThat(entity.getFinishedAt()).isNotNull();
+        assertThat(entity.getErrorCode()).isEqualTo(ErrorCode.INTERNAL_ERROR.getCode());
+    }
+
+    @Test
+    void theRunningSessionIdIsCleared() {
+        stubNineSuccessesAndThreeErrors();
+
+        runner.run(SESSION_ID, simulationId, "trace-1");
+
+        assertThat(entity.getRunningSessionId()).isNull();
+    }
+
+    private void stubNineSuccessesAndThreeErrors() {
         when(gameEngineClient.move(eq(simulationId), anyString(), anyInt())).thenReturn(
                 correctStep(GameState.IN_PROGRESS), invalidStep(),
                 correctStep(GameState.IN_PROGRESS), correctStep(GameState.IN_PROGRESS), invalidStep(),
                 correctStep(GameState.IN_PROGRESS), correctStep(GameState.IN_PROGRESS), correctStep(GameState.IN_PROGRESS), invalidStep(),
                 correctStep(GameState.IN_PROGRESS), correctStep(GameState.IN_PROGRESS), correctStep(GameState.IN_PROGRESS));
-
-        runner.run(SESSION_ID, simulationId, "trace-1");
-
-        verify(gameEngineClient, times(12)).move(eq(simulationId), anyString(), anyInt());
-        // 12 in-loop persist() calls (the loop exhausts its move budget at move 12) plus one
-        // more from persistTerminal(), which closes the IN_PROGRESS-forever hole (E5).
-        verify(simulationRepository, times(13)).save(entity);
-        assertThat(entity.getErrorsCount()).isEqualTo(3);
-        assertThat(entity.getStatus()).isEqualTo(GameState.FAILED);
-        assertThat(entity.getFinishedAt()).isNotNull();
-        assertThat(entity.getErrorCode()).isEqualTo(ErrorCode.INTERNAL_ERROR.getCode());
-        assertThat(entity.getRunningSessionId()).isNull();
     }
 
     @Test

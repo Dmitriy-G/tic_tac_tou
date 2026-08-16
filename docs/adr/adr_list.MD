@@ -24,6 +24,8 @@ About parallel simulations at the time
 
 About persist data (on each step vs after simulation)
 
+About CI/CD
+
 # Don't implemented, for future discussion
 
 About storing log on BE
@@ -31,8 +33,6 @@ About storing log on BE
 About parallel simulations
 
 About multiple clients for one simulation
-
-About CI/CD
 
 About simulation that stuck and cron
 

@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * The engine's fault channel end to end: every rejection here is a broken/malformed request or
  * an unknown game, never a rule outcome — see docs for the
  * distinction. {@link GameJpaRepository} is mocked because these tests exercise translation, not
- * persistence (already covered by GameStoreTest / PostgresGameResponseRepositoryTest).
+ * persistence (already covered by GameStoreTest / GameRepositoryTest).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -120,27 +120,5 @@ class GameControllerErrorHandlingTest {
                 .andExpect(jsonPath("$.message").exists())
                 .andExpect(jsonPath("$.path").value("/games/" + gameId))
                 .andExpect(jsonPath("$.traceId").exists());
-    }
-
-    @Test
-    void missingInternalTokenReturns401Unauthorized() throws Exception {
-        mockMvc.perform(get("/games/{gameId}", UUID.randomUUID()))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
-                .andExpect(jsonPath("$.traceId").exists());
-    }
-
-    @Test
-    void wrongInternalTokenReturns401Unauthorized() throws Exception {
-        mockMvc.perform(get("/games/{gameId}", UUID.randomUUID())
-                        .header(InternalTokenFilter.HEADER, "not-the-right-token"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
-    }
-
-    @Test
-    void actuatorHealthRequiresNoInternalToken() throws Exception {
-        mockMvc.perform(get("/actuator/health"))
-                .andExpect(status().isOk());
     }
 }

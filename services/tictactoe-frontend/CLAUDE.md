@@ -13,10 +13,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run test` — run the Vitest suite once (CI mode)
 - `npm run test:watch` — run Vitest in watch mode
 
-Test runner is Vitest (`vite.config.ts`'s `test` block, Node environment — no `jsdom`, since the
-suite is pure functions and deliberately has no component-rendering tests: `*.test.ts` next to the
-module it covers in `src/state/` and `src/utils/`). This is the one exception to "no new runtime
-dependencies" in the assignment's constraints — `vitest` is a devDependency only, added because
+Test runner is Vitest (`vite.config.ts`'s `test` block, `jsdom` environment, `src/test/setup.ts`
+loading `@testing-library/jest-dom`'s matchers). `*.test.ts` next to the module it covers in
+`src/state/` and `src/utils/` are pure-function tests; `*.test.tsx` next to each hook in
+`src/hooks/` and each component in `src/components/` render through `@testing-library/react`.
+This is the one exception to "no new runtime dependencies" in the assignment's constraints —
+`vitest`, `@testing-library/react`, `@testing-library/jest-dom`, and `jsdom` (the DOM
+`@testing-library/react` needs to render into under Node) are devDependencies only, added because
 the assignment's own testing requirements name frontend tests.
 
 ## Architecture
