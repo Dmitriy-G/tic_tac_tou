@@ -18,6 +18,9 @@ target/
 *.class
 *.jar
 
+# SpotBugs
+spotbugsXml.xml
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

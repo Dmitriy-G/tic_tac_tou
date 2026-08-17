@@ -1,5 +1,7 @@
 # Distributed Tic Tac Toe
 
+![CI](https://github.com/Dmitriy-G/tic_tac_tou/actions/workflows/ci.yml/badge.svg)
+
 A distributed Tic Tac Toe application in which the game is played automatically by microservices, with a UI that watches the game unfold.
 
 ## Components
@@ -139,6 +141,26 @@ mvn test -pl services/tictactoe-engine      # one module
 cd services/tictactoe-frontend
 npm run type-check
 ```
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push (any branch) and every pull request, with a
+concurrency group that cancels superseded runs on the same ref. Two jobs run in parallel so a
+frontend lint failure never hides a backend test failure:
+
+- **Backend** — SpotBugs static analysis (`mvn spotbugs:check`, threshold `High`) followed by
+  `mvn verify` (compiles, runs the full JUnit suite, and would run Failsafe `*IT` integration
+  tests). Surefire reports are uploaded as an artifact even when the build fails.
+- **Frontend** — `npm ci`, ESLint (`--max-warnings 0`, so warnings fail the build), `tsc` type
+  checking, the Vitest suite, and the production build.
+
+A third job, **Docker images build**, runs `docker compose build` after both of the above pass, to
+catch a Dockerfile path broken by a module rename; it does not start the containers or hit the API
+— that is the integration test's job, not CI's.
+
+No path filtering: with three Maven modules and one frontend, the whole suite runs in a couple of
+minutes, so every commit runs everything. No secrets are required — `INTERNAL_TOKEN` is only used
+at runtime and the test profile (`application-test.yml`) supplies its own value.
 
 ## Error handling
 
