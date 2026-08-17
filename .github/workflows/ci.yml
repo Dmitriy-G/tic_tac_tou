@@ -26,7 +26,7 @@ jobs:
           cache: maven
 
       - name: Static analysis
-        run: mvn --batch-mode --no-transfer-progress spotbugs:check
+        run: mvn --batch-mode --no-transfer-progress compile spotbugs:check
 
       - name: Build and test
         run: mvn --batch-mode --no-transfer-progress verify
