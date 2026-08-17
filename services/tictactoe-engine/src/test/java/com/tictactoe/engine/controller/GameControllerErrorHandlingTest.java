@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -31,6 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+// OS env vars outrank application-test.yml in Spring's property order, so a locally-exported
+// INTERNAL_TOKEN would otherwise silently override the token below; pin it explicitly.
+@TestPropertySource(properties = "internal.token=test-internal-token")
 class GameControllerErrorHandlingTest {
 
     private static final String TEST_TOKEN = "test-internal-token";
