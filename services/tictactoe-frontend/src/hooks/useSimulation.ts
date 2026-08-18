@@ -68,8 +68,8 @@ export function useSimulation() {
 
   useEffect(() => clearReconnectTimeout, [clearReconnectTimeout])
 
-  // A session is single-use — the backend rejects re-simulating a completed one — so always mint
-  // a fresh session per run rather than reusing sessionId.
+  // One session is one game (docs/adr/0004-session-is-the-game.md), so each run creates its own
+  // session rather than reusing sessionId.
   const start = useCallback(async () => {
     clearReconnectTimeout()
     dispatch({ type: 'START' })

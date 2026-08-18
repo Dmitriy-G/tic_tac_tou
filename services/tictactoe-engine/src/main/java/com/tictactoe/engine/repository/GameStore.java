@@ -26,6 +26,10 @@ public class GameStore {
         return new Game(entity);
     }
 
+    // DEFERRED-3: save() overwrites an existing row with this id instead of rejecting a collision.
+    // No longer a live risk in practice — the session service now enforces gameId == sessionId and
+    // a session can only ever be simulated once (docs/adr/0004-session-is-the-game.md), so the
+    // engine never sees a second createGame for an id already in use. Still worth fixing properly.
     public void create(String gameId, List<String> board) {
         GameEntity entity = new GameEntity();
         entity.setId(toUuid(gameId));

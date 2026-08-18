@@ -1,4 +1,6 @@
 sequenceDiagram
+    %% One session is one game (docs/adr/0004-session-is-the-game.md): the {gameId} sent to the
+    %% engine below is the same UUID as the session's {id} — there is no separate simulation id.
     participant UI as tictactoe-frontend
     participant Session as tictactoe-session
     participant Engine as tictactoe-engine

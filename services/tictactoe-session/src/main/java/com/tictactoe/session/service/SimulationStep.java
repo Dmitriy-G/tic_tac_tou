@@ -1,8 +1,10 @@
 package com.tictactoe.session.service;
 
+import com.tictactoe.common.domain.Symbol;
 import com.tictactoe.common.dto.MoveResponse;
 import com.tictactoe.session.client.GameEngineClient;
 import com.tictactoe.session.config.MoveStrategyResolver;
+import com.tictactoe.session.dto.MoveRecord;
 import com.tictactoe.session.strategy.MoveStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,18 +27,22 @@ public class SimulationStep {
         this.eventPublisher = eventPublisher;
     }
 
-    void execute(String sessionId, String simulationId, SimulationProgress progress) {
+    /** {@code sessionId} is the engine's {@code gameId} — one session is one game. */
+    MoveRecord execute(String sessionId, SimulationProgress progress) {
         String symbol = progress.currentSymbol();
         MoveStrategy strategy = moveStrategyResolver.resolve(symbol);
         int position = strategy.selectMove(progress.board(), symbol);
+        int moveNumber = progress.moveNumber();
 
-        MoveResponse response = gameEngineClient.move(simulationId, symbol, position);
+        MoveResponse response = gameEngineClient.move(sessionId, symbol, position);
 
-        eventPublisher.publishMove(sessionId, progress.moveNumber(), symbol, position, response);
+        eventPublisher.publishMove(sessionId, response);
 
         log.info("move={} symbol={} position={} status={}",
-                progress.moveNumber(), symbol, position, response.gameState());
+                moveNumber, symbol, position, response.gameState());
 
         progress.recordStep(response);
+
+        return new MoveRecord(moveNumber, Symbol.valueOf(symbol), position, response.stepStatus());
     }
 }

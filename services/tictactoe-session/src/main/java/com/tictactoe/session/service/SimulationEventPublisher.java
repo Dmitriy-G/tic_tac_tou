@@ -1,7 +1,6 @@
 package com.tictactoe.session.service;
 
 import com.tictactoe.common.domain.GameState;
-import com.tictactoe.common.domain.Symbol;
 import com.tictactoe.common.dto.MoveResponse;
 import com.tictactoe.common.error.ErrorCode;
 import com.tictactoe.session.domain.SessionEvent;
@@ -15,16 +14,12 @@ import java.util.ArrayList;
 public class SimulationEventPublisher {
 
     private final SseEmitterRegistry emitterRegistry;
-    private final SessionStateStore stateStore;
 
-    public SimulationEventPublisher(SseEmitterRegistry emitterRegistry, SessionStateStore stateStore) {
+    public SimulationEventPublisher(SseEmitterRegistry emitterRegistry) {
         this.emitterRegistry = emitterRegistry;
-        this.stateStore = stateStore;
     }
 
-    void publishMove(String sessionId, int moveNumber, String symbol, int position, MoveResponse response) {
-        stateStore.recordMove(sessionId, moveNumber, Symbol.valueOf(symbol), position, response);
-
+    void publishMove(String sessionId, MoveResponse response) {
         GameState gameState = response.gameState();
         boolean completed = gameState != GameState.IN_PROGRESS;
         emitterRegistry.publish(sessionId, new SessionEvent(
@@ -39,8 +34,6 @@ public class SimulationEventPublisher {
     }
 
     void publishFailure(String sessionId, ErrorCode errorCode, String message) {
-        stateStore.recordFailure(sessionId, errorCode, message);
-
         emitterRegistry.publish(sessionId, new SessionEvent(
                 sessionId, SessionEvent.EventType.FAILED, null, null, null,
                 errorCode.getCode(), message, MDC.get("traceId")));
