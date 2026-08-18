@@ -7,6 +7,7 @@ import com.tictactoe.common.dto.CreateGameResponse;
 import com.tictactoe.common.dto.GameResponse;
 import com.tictactoe.common.dto.MoveRequest;
 import com.tictactoe.common.dto.MoveResponse;
+import com.tictactoe.common.error.ConflictException;
 import com.tictactoe.engine.repository.Game;
 import com.tictactoe.engine.repository.GameStore;
 import org.junit.jupiter.api.Test;
@@ -17,10 +18,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -72,7 +75,7 @@ class GameServiceTest {
         assertThat(response.gameState()).isEqualTo(GameState.IN_PROGRESS);
         assertThat(response.stepStatus()).isEqualTo(StepStatus.CELL_OCCUPIED);
         assertThat(response.winner()).isNull();
-        verify(gameStore, never()).save(any(), anyList(), any());
+        verify(gameStore, never()).compareAndSave(any(), anyList(), any());
     }
 
     @Test
@@ -85,13 +88,51 @@ class GameServiceTest {
                 .thenReturn(StepStatus.CORRECT_STEP);
         when(outcomeEvaluator.resolve(anyList(), eq(Symbol.X)))
                 .thenReturn(new GameOutcomeEvaluator.Outcome(GameState.IN_PROGRESS, null));
+        when(gameStore.compareAndSave(eq(game), anyList(), eq(GameState.IN_PROGRESS)))
+                .thenReturn(true);
 
         MoveResponse response = service().applyMove("game-1", move);
 
         assertThat(response.board().get(0)).isEqualTo("X");
         assertThat(response.stepStatus()).isEqualTo(StepStatus.CORRECT_STEP);
         assertThat(response.gameState()).isEqualTo(GameState.IN_PROGRESS);
-        verify(gameStore).save(eq(game), anyList(), eq(GameState.IN_PROGRESS));
+        verify(gameStore).compareAndSave(eq(game), anyList(), eq(GameState.IN_PROGRESS));
+    }
+
+    @Test
+    void aLostRaceIsReValidatedAndReturnsTheHonestRejection() {
+        List<String> emptyBoard = List.of(".", ".", ".", ".", ".", ".", ".", ".", ".");
+        List<String> occupiedBoard = List.of("X", ".", ".", ".", ".", ".", ".", ".", ".");
+        Game firstRead = mockGame(emptyBoard, GameState.IN_PROGRESS);
+        Game secondRead = mockGame(occupiedBoard, GameState.IN_PROGRESS);
+        when(gameStore.load("game-1")).thenReturn(firstRead, secondRead);
+        MoveRequest move = new MoveRequest(Symbol.X, 0);
+        when(moveValidator.validate(anyList(), eq(GameState.IN_PROGRESS), eq(move)))
+                .thenReturn(StepStatus.CORRECT_STEP, StepStatus.CELL_OCCUPIED);
+        when(outcomeEvaluator.resolve(anyList(), eq(Symbol.X)))
+                .thenReturn(new GameOutcomeEvaluator.Outcome(GameState.IN_PROGRESS, null));
+        when(gameStore.compareAndSave(any(), anyList(), any())).thenReturn(false);
+
+        MoveResponse response = service().applyMove("game-1", move);
+
+        assertThat(response.stepStatus()).isEqualTo(StepStatus.CELL_OCCUPIED);
+        verify(gameStore, times(1)).compareAndSave(any(), anyList(), any());
+    }
+
+    @Test
+    void exhaustingCompareAndSwapAttemptsThrowsConflict() {
+        Game game = mockGame(List.of(".", ".", ".", ".", ".", ".", ".", ".", "."), GameState.IN_PROGRESS);
+        when(gameStore.load("game-1")).thenReturn(game);
+        MoveRequest move = new MoveRequest(Symbol.X, 0);
+        when(moveValidator.validate(anyList(), eq(GameState.IN_PROGRESS), eq(move)))
+                .thenReturn(StepStatus.CORRECT_STEP);
+        when(outcomeEvaluator.resolve(anyList(), eq(Symbol.X)))
+                .thenReturn(new GameOutcomeEvaluator.Outcome(GameState.IN_PROGRESS, null));
+        when(gameStore.compareAndSave(any(), anyList(), any())).thenReturn(false);
+
+        assertThatThrownBy(() -> service().applyMove("game-1", move))
+                .isInstanceOf(ConflictException.class);
+        verify(gameStore, times(3)).compareAndSave(any(), anyList(), any());
     }
 
     private static Game mockGame(List<String> board, GameState state) {

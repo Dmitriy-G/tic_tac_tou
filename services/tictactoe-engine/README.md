@@ -58,6 +58,15 @@ The `games` table lives in its own `engine_db` PostgreSQL database (never shared
 
 `GameService` is orchestration only: it loads the game through `GameStore`, delegates validation to `MoveValidator` (which in turn asks `TurnPolicy` whose move it is), delegates outcome resolution to `GameOutcomeEvaluator` (win checked before fullness, so a win on the 9th cell beats a draw), and persists through `GameStore`. `WinningLines` (`config/`) parses and validates `game.winning-lines` at startup, failing context startup with `IllegalStateException` on a malformed property instead of blowing up mid-game. `POST /games` accepts an optional `{"gameId": "..."}` body so the session service can force `gameId == sessionId`; when omitted, the engine generates one.
 
+## Concurrency
+
+`GameService.applyMove` persists through a compare-and-swap `UPDATE` on `games.board`
+(`GameJpaRepository.compareAndSwapBoard`, wrapped by `GameStore.compareAndSave`), not an
+unconditional write. A losing writer is re-validated against the freshly re-read board and gets
+the honest rejection (`CELL_OCCUPIED`/`OUT_OF_TURN`); exhausting `MAX_ATTEMPTS` (3) throws a
+`409 CONFLICT`. No `synchronized`, `Lock`, or `SELECT ... FOR UPDATE` is used, and correctness does
+not depend on running a single engine instance. See `docs/adr/0003-optimistic-concurrency-on-moves.md`.
+
 ## Error handling
 
 - `GameNotFoundException` (extends `NotFoundException`) → `404 GAME_NOT_FOUND`.

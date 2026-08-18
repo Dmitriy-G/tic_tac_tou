@@ -5,6 +5,8 @@ import com.tictactoe.common.dto.GameResponse;
 import com.tictactoe.common.dto.MoveRequest;
 import com.tictactoe.common.dto.MoveResponse;
 import com.tictactoe.common.domain.StepStatus;
+import com.tictactoe.common.error.ConflictException;
+import com.tictactoe.common.error.ErrorCode;
 import com.tictactoe.engine.repository.Game;
 import com.tictactoe.engine.repository.GameStore;
 import com.tictactoe.engine.util.BoardUtils;
@@ -15,6 +17,8 @@ import java.util.List;
 
 @Service
 public class GameService {
+
+    private static final int MAX_ATTEMPTS = 3;
 
     private final GameStore gameStore;
     private final MoveValidator moveValidator;
@@ -38,18 +42,26 @@ public class GameService {
     }
 
     public MoveResponse applyMove(String gameId, MoveRequest move) {
-        Game game = gameStore.load(gameId);
-        List<String> board = new ArrayList<>(game.board());
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            Game game = gameStore.load(gameId);
+            List<String> board = new ArrayList<>(game.board());
 
-        StepStatus status = moveValidator.validate(board, game.state(), move);
-        if (status != StepStatus.CORRECT_STEP) {
-            return new MoveResponse(board, game.state(), status, null);
+            StepStatus status = moveValidator.validate(board, game.state(), move);
+            if (status != StepStatus.CORRECT_STEP) {
+                return new MoveResponse(board, game.state(), status, null);
+            }
+
+            board.set(move.position(), move.symbol().name());
+            GameOutcomeEvaluator.Outcome outcome = outcomeEvaluator.resolve(board, move.symbol());
+
+            if (gameStore.compareAndSave(game, board, outcome.state())) {
+                return new MoveResponse(board, outcome.state(), StepStatus.CORRECT_STEP, outcome.winner());
+            }
+            // Another move landed between our read and our write. Loop: the next iteration
+            // re-reads the winning thread's board, and the validator rejects this move with
+            // the honest reason — CELL_OCCUPIED or OUT_OF_TURN.
         }
-
-        board.set(move.position(), move.symbol().name());
-        GameOutcomeEvaluator.Outcome outcome = outcomeEvaluator.resolve(board, move.symbol());
-
-        gameStore.save(game, board, outcome.state());
-        return new MoveResponse(board, outcome.state(), StepStatus.CORRECT_STEP, outcome.winner());
+        throw new ConflictException(ErrorCode.CONFLICT,
+                "Move on game " + gameId + " lost " + MAX_ATTEMPTS + " compare-and-swap attempts");
     }
 }

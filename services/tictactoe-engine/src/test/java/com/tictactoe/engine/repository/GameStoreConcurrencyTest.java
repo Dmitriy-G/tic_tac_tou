@@ -1,6 +1,5 @@
 package com.tictactoe.engine.repository;
 
-import com.tictactoe.common.domain.GameState;
 import com.tictactoe.common.domain.StepStatus;
 import com.tictactoe.common.domain.Symbol;
 import com.tictactoe.common.dto.MoveRequest;
@@ -24,12 +23,13 @@ import java.util.function.IntFunction;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@link GameStore#save(Game, List, GameState)} writes the whole 9-character board on every call,
- * so two overlapping load-modify-save cycles on the same game clobber each other regardless of
- * which cells they touch, unless callers are serialised per game id. Nothing in {@link GameStore}
- * or {@link GameService} currently provides that serialisation — these tests exercise the real
- * beans against the H2 test database and prove (or disprove) the ADRs' concurrent-move-safety
- * claim. A {@link CountDownLatch} releases every thread together; no {@code Thread.sleep}.
+ * {@link GameStore#compareAndSave(Game, List, com.tictactoe.common.domain.GameState)} writes the
+ * new board only if the stored board still equals the one the caller loaded, so two overlapping
+ * load-modify-save cycles on the same game can no longer clobber each other: the loser's write is
+ * rejected and {@link GameService#applyMove} re-validates against the winner's board. No
+ * serialisation exists or is needed — these tests exercise the real beans against the H2 test
+ * database to prove the property holds. A {@link CountDownLatch} releases every thread together;
+ * no {@code Thread.sleep}.
  */
 @SpringBootTest(classes = EngineApplication.class)
 @ActiveProfiles("test")
@@ -60,24 +60,41 @@ class GameStoreConcurrencyTest {
     }
 
     @Test
-    void concurrentMovesToDifferentCellsLoseNoMoves() throws Exception {
+    void concurrentMovesToDifferentCellsStillProduceExactlyOneCorrectStep() throws Exception {
+        // Turn order means at most one symbol may move at any instant, so nine threads
+        // targeting nine *different* cells is still a nine-way race for a single slot.
+        // Distinct cells rule out CELL_OCCUPIED as the reason only one wins — what rejects
+        // the other eight is the turn having advanced.
         String gameId = UUID.randomUUID().toString();
-        gameStore.create(gameId, BoardUtils.emptyBoard());
+        gameService.createGame(gameId);
         int threadCount = 9;
 
-        runConcurrently(threadCount, cell -> {
-            Game game = gameStore.load(gameId);
-            List<String> board = new ArrayList<>(game.board());
-            board.set(cell, Symbol.X.name());
-            gameStore.save(game, board, GameState.IN_PROGRESS);
-            return null;
-        });
+        List<StepStatus> results = runConcurrently(threadCount,
+                cell -> gameService.applyMove(gameId, new MoveRequest(Symbol.X, cell)).stepStatus());
+
+        assertThat(results)
+                .as("exactly one of %d concurrent moves to distinct cells should win the single X turn", threadCount)
+                .filteredOn(StepStatus.CORRECT_STEP::equals)
+                .hasSize(1);
+    }
+
+    @Test
+    void concurrentMovesLeaveExactlyOneSymbolOnTheBoard() throws Exception {
+        // The lost-update assertion, stated correctly: after N concurrent attempts the
+        // persisted board holds exactly one symbol. Guards against two writes both landing
+        // and against the winning write being clobbered.
+        String gameId = UUID.randomUUID().toString();
+        gameService.createGame(gameId);
+        int threadCount = 9;
+
+        runConcurrently(threadCount,
+                cell -> gameService.applyMove(gameId, new MoveRequest(Symbol.X, cell)).stepStatus());
 
         List<String> finalBoard = gameStore.load(gameId).board();
         long symbolCount = finalBoard.stream().filter(cell -> !BoardUtils.EMPTY_CELL.equals(cell)).count();
         assertThat(symbolCount)
-                .as("every one of %d concurrent single-cell writes should be reflected in the final board", threadCount)
-                .isEqualTo(threadCount);
+                .as("exactly one symbol should be persisted after %d concurrent attempts, no lost update and no clobber", threadCount)
+                .isEqualTo(1);
     }
 
     /**

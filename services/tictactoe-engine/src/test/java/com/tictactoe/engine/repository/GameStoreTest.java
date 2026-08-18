@@ -15,8 +15,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.times;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -71,7 +70,7 @@ class GameStoreTest {
     }
 
     @Test
-    void saveReusesTheEntityLoadedEarlierWithoutASecondRead() {
+    void compareAndSaveReturnsTrueWhenTheStoredBoardIsUnchanged() {
         gameStore = new GameStore(gameRepository);
         UUID id = UUID.randomUUID();
         GameEntity entity = new GameEntity();
@@ -79,12 +78,31 @@ class GameStoreTest {
         entity.setBoard(".........");
         entity.setState(GameState.IN_PROGRESS);
         when(gameRepository.findById(id)).thenReturn(Optional.of(entity));
+        when(gameRepository.compareAndSwapBoard(eq(id), eq("........."), eq("X........"), eq(GameState.IN_PROGRESS)))
+                .thenReturn(1);
 
         Game game = gameStore.load(id.toString());
-        gameStore.save(game, List.of("X", ".", ".", ".", ".", ".", ".", ".", "."), GameState.IN_PROGRESS);
+        boolean won = gameStore.compareAndSave(game, List.of("X", ".", ".", ".", ".", ".", ".", ".", "."), GameState.IN_PROGRESS);
 
-        verify(gameRepository, times(1)).findById(any());
-        verify(gameRepository).save(entity);
-        assertThat(entity.getBoard()).isEqualTo("X........");
+        assertThat(won).isTrue();
+        verify(gameRepository).compareAndSwapBoard(id, ".........", "X........", GameState.IN_PROGRESS);
+    }
+
+    @Test
+    void compareAndSaveReturnsFalseWhenAnotherWriterChangedTheBoard() {
+        gameStore = new GameStore(gameRepository);
+        UUID id = UUID.randomUUID();
+        GameEntity entity = new GameEntity();
+        entity.setId(id);
+        entity.setBoard(".........");
+        entity.setState(GameState.IN_PROGRESS);
+        when(gameRepository.findById(id)).thenReturn(Optional.of(entity));
+        when(gameRepository.compareAndSwapBoard(eq(id), eq("........."), eq("X........"), eq(GameState.IN_PROGRESS)))
+                .thenReturn(0);
+
+        Game game = gameStore.load(id.toString());
+        boolean won = gameStore.compareAndSave(game, List.of("X", ".", ".", ".", ".", ".", ".", ".", "."), GameState.IN_PROGRESS);
+
+        assertThat(won).isFalse();
     }
 }

@@ -42,10 +42,17 @@ public class GameStore {
         }
     }
 
-    public void save(Game game, List<String> board, GameState state) {
-        GameEntity entity = game.entity();
-        entity.setBoard(BoardUtils.convertToString(board));
-        entity.setState(state);
-        gameRepository.save(entity);
+    /**
+     * Writes the new board only if the stored board is still the one {@code game} was loaded with.
+     * Returns {@code false} when another thread committed a move first, leaving the caller to
+     * re-read and re-validate. No locking: this is a single conditional UPDATE.
+     */
+    public boolean compareAndSave(Game game, List<String> board, GameState state) {
+        int updated = gameRepository.compareAndSwapBoard(
+                game.entity().getId(),
+                game.rawBoard(),
+                BoardUtils.convertToString(board),
+                state);
+        return updated == 1;
     }
 }
