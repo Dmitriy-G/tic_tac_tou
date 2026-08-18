@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -80,15 +81,33 @@ class SessionControllerErrorHandlingTest {
 
     @Test
     void secondSimulateWhileRunningReturns409SimulationAlreadyRunning() throws Exception {
+        // The background simulation thread each /simulate call spawns races the second HTTP
+        // request: with an instantly-throwing engine mock, that thread can reach FAILED before
+        // the second request's checks run, flipping the expected SIMULATION_ALREADY_RUNNING into
+        // SESSION_ALREADY_COMPLETED. A latch blocks the mock inside the engine call until this
+        // test has confirmed it was entered, guaranteeing the simulation is still IN_PROGRESS
+        // when the second request lands — no Thread.sleep, no timing dependency.
+        CountDownLatch engineCallStarted = new CountDownLatch(1);
+        CountDownLatch releaseEngine = new CountDownLatch(1);
         when(gameEngineClient.createGame(org.mockito.ArgumentMatchers.anyString()))
-                .thenThrow(new RuntimeException("engine unreachable"));
+                .thenAnswer(invocation -> {
+                    engineCallStarted.countDown();
+                    releaseEngine.await();
+                    throw new RuntimeException("engine unreachable");
+                });
         CreatedSession session = createSession();
 
         mockMvc.perform(post("/sessions/{sessionId}/simulate", session.id()).cookie(session.ownerCookie()))
                 .andExpect(status().isAccepted());
-        mockMvc.perform(post("/sessions/{sessionId}/simulate", session.id()).cookie(session.ownerCookie()))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("SIMULATION_ALREADY_RUNNING"));
+        engineCallStarted.await();
+
+        try {
+            mockMvc.perform(post("/sessions/{sessionId}/simulate", session.id()).cookie(session.ownerCookie()))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SIMULATION_ALREADY_RUNNING"));
+        } finally {
+            releaseEngine.countDown();
+        }
     }
 
     private CreatedSession createSession() throws Exception {
