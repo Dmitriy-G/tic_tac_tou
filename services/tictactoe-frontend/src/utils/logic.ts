@@ -2,7 +2,8 @@ import type { BoardState, Player, WinResult } from './types'
 
 const BOARD_SIZE = 9
 
-const WINNING_LINES: number[][] = [
+// Exported so tests assert against the real lines rather than keeping their own copy in sync.
+export const WINNING_LINES: number[][] = [
   [0, 1, 2],
   [3, 4, 5],
   [6, 7, 8],

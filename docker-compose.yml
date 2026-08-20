@@ -5,9 +5,6 @@ services:
       POSTGRES_DB: engine_db
       POSTGRES_USER: engine
       POSTGRES_PASSWORD: engine
-      #TODO: port need to local check. Separate yml
-    ports:
-      - "5433:5432"
     volumes:
       - engine-db-data:/var/lib/postgresql/data
     healthcheck:
@@ -22,9 +19,6 @@ services:
       POSTGRES_DB: session_db
       POSTGRES_USER: session
       POSTGRES_PASSWORD: session
-      #TODO: port need to local check. Separate yml
-    ports:
-      - "5434:5432"
     volumes:
       - session-db-data:/var/lib/postgresql/data
     healthcheck:
@@ -96,6 +90,30 @@ services:
       - "8081:8081"
     depends_on:
       - tictactoe-engine
+
+  # Republishes the databases on demand, for a SQL client (DataGrip, DBeaver, psql):
+  #   docker compose --profile debug up -d
+  #   psql -h localhost -p 5433 -U engine engine_db
+  # Ports match the pre-ADR-0002 published ports, so saved client connections still work.
+  engine-db-debug-ports:
+    image: alpine/socat
+    profiles: ["debug"]
+    command: TCP-LISTEN:5432,fork,reuseaddr TCP:engine-db:5432
+    ports:
+      - "5433:5432"
+    depends_on:
+      engine-db:
+        condition: service_healthy
+
+  session-db-debug-ports:
+    image: alpine/socat
+    profiles: ["debug"]
+    command: TCP-LISTEN:5432,fork,reuseaddr TCP:session-db:5432
+    ports:
+      - "5434:5432"
+    depends_on:
+      session-db:
+        condition: service_healthy
 
 volumes:
   engine-db-data:

@@ -1,0 +1,4 @@
+<FindBugsFilter>
+    <!-- Add exclusions here, each with a comment explaining WHY it is not a real defect.
+         An exclusion without a reason is a suppressed bug. -->
+</FindBugsFilter>

@@ -218,11 +218,11 @@ Each service owns a dedicated PostgreSQL database — `engine_db` for the engine
 
 - **Schema is owned by Flyway**, not Hibernate: `spring.jpa.hibernate.ddl-auto` is `validate`, never `update` or `create`. Migrations live in `src/main/resources/db/migration` per service.
 - `engine_db.games (id UUID, board VARCHAR(9), state VARCHAR(20))` — the 9-cell board is encoded as a 9-character string (`X`/`O`/`_` for empty); `winner` is derived from `state`, not stored separately.
-- `session_db.sessions (id UUID)` — an identity/anchor row only; `sessionId` **is** `gameId` so no separate column is needed, and the board/move history are deliberately not duplicated here (see anti-patterns).
-- `session_db.simulations (id UUID, session_id UUID FK -> sessions, errors_count INT, started_at TIMESTAMP, finished_at TIMESTAMP, status VARCHAR(20))` — one row per `/simulate` run, the audit trail of run outcomes.
+- `session_db.sessions (id UUID, owner_token_hash VARCHAR(64), status VARCHAR(20), board VARCHAR(9), winner VARCHAR(1), errors_count INT, error_code VARCHAR(64), error_message VARCHAR(1000), started_at TIMESTAMP, finished_at TIMESTAMP)` — one session is one game: `sessionId` **is** `gameId`, and this row is the single source of truth for that game's status/board/outcome, not just an identity/anchor row. See `docs/adr/0004-session-is-the-game.md`.
+- `session_db.session_moves (session_id UUID FK -> sessions, move_number SMALLINT, symbol VARCHAR(1), position SMALLINT, step_status VARCHAR(32), created_at TIMESTAMP, PRIMARY KEY (session_id, move_number))` — the durable move history, one row per accepted move.
 - Connection pool: explicit connect/read behaviour via the datasource properties in `application.yml`, env-overridable (`ENGINE_DB_URL`/`SESSION_DB_URL` + `*_USERNAME`/`*_PASSWORD`), same pattern as `ENGINE_BASE_URL`.
 - Tests run against H2 in PostgreSQL compatibility mode (`MODE=PostgreSQL`) via `application-test.yml`, with the same Flyway migrations applied — not Testcontainers (out of scope, see below).
-- A `ConcurrentHashMap`-backed read-modify-write guard is still required wherever mutable in-flight state genuinely can't live in the database without duplicating another service's data (e.g. a session's live status/move history while a simulation is running) — mutate through `compute()` or a per-key lock so two concurrent moves on the same game produce exactly one success and one 409.
+- A `ConcurrentHashMap`-backed read-modify-write guard is still required wherever mutable in-flight state genuinely can't live in the database without duplicating another service's data (e.g. `SseEmitterRegistry`'s per-session subscriber list and event backlog, which exist only to serve the live SSE stream and replay a late subscriber's missed events) — mutate through `compute()` or a per-key lock.
 
 ### Engine HTTP client (session service)
 
@@ -328,7 +328,7 @@ created it — **is** in scope, per `docs/adr/0002-security-model.md`. Do not re
 opening to add a user store, login flow, or `spring-boot-starter-security`; those remain out of
 scope for the reasons in that ADR's Rejected Alternatives.
 
-Each of these belongs in `docs/adr/` as a considered-and-rejected alternative with rationale — that scores better than implementing it. REST is a deliberate choice for this scope, not an omission. PostgreSQL (one instance per service, via Flyway-managed schemas) **is** in scope — see Storage above; don't reintroduce in-memory maps as the system of record for `games`, `sessions`, or `simulations`.
+Each of these belongs in `docs/adr/` as a considered-and-rejected alternative with rationale — that scores better than implementing it. REST is a deliberate choice for this scope, not an omission. PostgreSQL (one instance per service, via Flyway-managed schemas) **is** in scope — see Storage above; don't reintroduce in-memory maps as the system of record for `games`, `sessions`, or `session_moves`.
 
 "API gateway" above means a dedicated routing service/container — still out of scope. Putting the browser-facing API on the same origin as the UI does **not** need one: the frontend's own nginx (already serving the built assets) reverse-proxies `/api/*` to the session service, which is what removes CORS from application code entirely. See `docs/adr/0001-edge-routing-no-gateway.md`.
 

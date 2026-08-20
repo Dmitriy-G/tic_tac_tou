@@ -68,12 +68,8 @@ export function useSimulation() {
 
   useEffect(() => clearReconnectTimeout, [clearReconnectTimeout])
 
-  // A session is single-use — the session state machine has no path back out of a terminal
-  // status, and the engine's game for it is finished. Reusing a previous run's sessionId here
-  // used to leave the UI stuck: the reused session's SSE sequence/backlog resets server-side on
-  // completion, but the browser's EventSource keeps the old (higher) Last-Event-ID, so the
-  // replay filter silently drops every event of the new run and the button never re-enables.
-  // Always mint a fresh session per run instead.
+  // One session is one game (docs/adr/0004-session-is-the-game.md), so each run creates its own
+  // session rather than reusing sessionId.
   const start = useCallback(async () => {
     clearReconnectTimeout()
     dispatch({ type: 'START' })

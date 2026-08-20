@@ -17,9 +17,7 @@ function StatusBanner({ state }: StatusBannerProps) {
     state.phase === 'finished'
       ? state.outcome === 'DRAW'
         ? "It's a draw!"
-        : state.outcome === 'CANCELLED'
-          ? 'Simulation cancelled.'
-          : `Winner: ${state.outcome === 'X_WON' ? 'X' : 'O'}`
+        : `Winner: ${state.outcome === 'X_WON' ? 'X' : 'O'}`
       : STATUS_TEXT[state.phase]
 
   return (

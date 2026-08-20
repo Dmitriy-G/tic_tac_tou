@@ -25,4 +25,9 @@ public final class Game {
     GameEntity entity() {
         return entity;
     }
+
+    /** The exact stored board string, used as the compare-and-swap predicate in {@link GameStore}. */
+    String rawBoard() {
+        return entity.getBoard();
+    }
 }

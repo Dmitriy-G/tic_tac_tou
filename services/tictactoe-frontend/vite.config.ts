@@ -20,8 +20,10 @@ export default defineConfig({
     },
   },
   test: {
-    // No component rendering tests (see CLAUDE.md) — the suite is pure reducer/logic functions,
-    // so the default Node environment is enough; no jsdom dependency needed.
-    include: ['src/**/*.test.ts'],
+    // jsdom backs the hook/component tests (Testing Library needs a DOM); the pure reducer/logic
+    // tests run fine under it too, so one environment covers the whole suite.
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 })

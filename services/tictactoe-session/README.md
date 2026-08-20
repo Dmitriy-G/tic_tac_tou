@@ -19,8 +19,8 @@ Manages game session lifecycle and automates gameplay by generating moves for bo
 | `ENGINE_CONNECT_TIMEOUT_MS` | `2000` | Connect timeout for calls to the engine |
 | `ENGINE_READ_TIMEOUT_MS` | `3000` | Read timeout for calls to the engine |
 | `SIMULATION_MOVE_DELAY_MS` | `500` | Delay between simulated moves, so the UI shows progression (tests set this to `0`) |
-| `SIMULATION_STRATEGY_X` | `SIMPLE` | Move strategy for `X`: `SIMPLE` (random empty cell) or `ADVANCED` (not implemented yet) |
-| `SIMULATION_STRATEGY_O` | `SIMPLE` | Move strategy for `O`: `SIMPLE` (random empty cell) or `ADVANCED` (not implemented yet) |
+| `SIMULATION_STRATEGY_X` | `SIMPLE` | Move strategy for `X`: `SIMPLE` (random empty cell) or `ADVANCED` (win &gt; block &gt; center &gt; corner &gt; side) |
+| `SIMULATION_STRATEGY_O` | `SIMPLE` | Move strategy for `O`: `SIMPLE` (random empty cell) or `ADVANCED` (win &gt; block &gt; center &gt; corner &gt; side) |
 | `ENGINE_RETRY_MAX_ATTEMPTS` | `3` | Max attempts (including the first) for a call to the engine, retried only when it fails with `ENGINE_UNAVAILABLE` |
 | `ENGINE_RETRY_INITIAL_BACKOFF_MS` | `200` | Base backoff between retries (Resilience4j exponential backoff with jitter) |
 | `SSE_HEARTBEAT_INTERVAL_MS` | `15000` | Interval between `:ping` SSE comment frames per subscriber — keeps idle timers (this service's, any reverse proxy's, the browser's) from expiring during a quiet stretch. Below the smallest timeout in the path; see `docs/adr/0001-edge-routing-no-gateway.md` |
@@ -65,16 +65,37 @@ OpenAPI JSON: `http://localhost:8082/v3/api-docs`
 
 ## Storage
 
-`session_db` (own PostgreSQL database, never shared with the engine) holds two tables, both managed by Flyway (`src/main/resources/db/migration/V1__create_sessions_and_simulations_tables.sql`):
+`session_db` (own PostgreSQL database, never shared with the engine) holds two tables, managed by
+Flyway (`src/main/resources/db/migration`, most recently `V5__collapse_simulations_into_sessions.sql`).
+One session is one game — `sessionId` **is** `gameId` — so `sessions` is the single source of
+truth for that game's state, not just an identity row; see `docs/adr/0004-session-is-the-game.md`.
 
-- `sessions (id UUID, owner_token_hash VARCHAR(64))` — a durable identity/anchor row created once per session. It intentionally does **not** store `gameId` (identical to `id` — `sessionId` **is** `gameId`), the board (the engine's authoritative copy is never duplicated here), or move history (would duplicate history the engine already owns — see the root `CLAUDE.md` anti-patterns). `owner_token_hash` (V4 migration) is a SHA-256 hash of the session's owner token — the raw token is never persisted, only returned once at creation; see `docs/adr/0002-security-model.md`.
-- `simulations (id UUID, session_id UUID FK -> sessions, errors_count INT, started_at TIMESTAMP, finished_at TIMESTAMP, status VARCHAR, running_session_id UUID, error_code VARCHAR, error_message VARCHAR)` — one row per `/simulate` run, the durable audit trail of run outcomes. `SimulationStarter`/`SimulationStateWriter` write and update it as a run progresses; `error_code`/`error_message` (V3 migration) are set when a run ends in `FAILED`. `running_session_id` mirrors `session_id` only while `status = 'IN_PROGRESS'` and is otherwise `null`; a unique index on it (V2 migration) is what actually stops two concurrent `/simulate` calls for the same session from both starting — H2 (used in tests) has no partial-index support, so this mirror-column trick gives the same guarantee a Postgres partial index would, portably.
+- `sessions (id UUID, owner_token_hash VARCHAR(64), status VARCHAR(20), board VARCHAR(9), winner VARCHAR(1), errors_count INT, error_code VARCHAR(64), error_message VARCHAR(1000), started_at TIMESTAMP, finished_at TIMESTAMP)` — created once per session (`status = CREATED`, empty board), then updated in place by `SessionStateWriter` as the simulation progresses and by `SessionJpaRepository.claimForSimulation` when it starts. It intentionally does **not** store the board as a separate copy of anything the engine doesn't already own — the engine remains authoritative, this column is just where its response gets written after each move. `owner_token_hash` (V4 migration) is a SHA-256 hash of the session's owner token — the raw token is never persisted, only returned once at creation; see `docs/adr/0002-security-model.md`.
+- `session_moves (session_id UUID FK -> sessions, move_number SMALLINT, symbol VARCHAR(1), position SMALLINT, step_status VARCHAR(32), created_at TIMESTAMP, PRIMARY KEY (session_id, move_number))` — the durable, replayable move history. Only accepted moves (`CORRECT_STEP`) get a row: a rejected attempt doesn't advance `move_number`, so the composite primary key would reject a second row at the same number — by design, not as an edge case to work around.
 
-A session's *live* board/move history while a simulation is running is process-local state, held in `SessionStateStore` (`Map<String, LiveState>`, mutated only through `compute()`) — never written to `session_db`, per the root `CLAUDE.md`. `GET /sessions/{id}` is built entirely from this store, which is what makes the SSE stream an optimisation rather than a dependency: `SimulationEventPublisher` updates the store and publishes the SSE event from the same call, so both are always in sync. On a fresh JVM (e.g. after a restart) the store is empty and a session reads back as `CREATED` with an empty board.
+There is no more process-local `SessionStateStore`. `GET /sessions/{id}` is built entirely from
+`sessions` + `session_moves`, which is what makes it survive a restart: a fresh JVM reads back the
+same terminal state a session reached before the process died, instead of reporting `CREATED` with
+an empty board. The SSE stream (`SimulationEventPublisher`/`SseEmitterRegistry`) remains a live
+optimisation layered on top, not a dependency — `GET` and SSE both ultimately reflect the same
+database rows, just on different latency budgets.
+
+Known trade-off: persistence happens on every move (one `INSERT` into `session_moves` plus one
+`UPDATE` on `sessions`), which is durable and fine for a nine-move game but would not scale to
+batch/mass simulation — see the ADR's Consequences section.
 
 ## Status
 
-`simulate()` drives real gameplay: it creates the game at the engine (`gameId` == `sessionId`), then alternates `X`/`O` moves — the cell for each move chosen by the `MoveStrategy` configured for that symbol (`simulation.strategy.x` / `simulation.strategy.o`) — publishing an SSE event and updating `SessionStateStore` after every move, until the engine reports a terminal status or the 9-move hard cap is hit. Only the `SIMPLE` strategy (`RandomMoveStrategy`, a uniformly random empty cell) is implemented; `ADVANCED` (`RuleBasedMoveStrategy`) is still a skeleton (`UnsupportedOperationException`). `cancel()` is not implemented yet.
+`simulate()` drives real gameplay: `SimulationStarter.start` claims the session via
+`SessionJpaRepository.claimForSimulation` (a compare-and-swap `UPDATE ... WHERE status =
+'CREATED'`), then `SimulationRunner` creates the game at the engine (`gameId` == `sessionId`, the
+same UUID throughout) and alternates `X`/`O` moves — the cell for each move chosen by the
+`MoveStrategy` configured for that symbol (`simulation.strategy.x` / `simulation.strategy.o`) —
+publishing an SSE event and persisting via `SessionStateWriter` after every move, until the engine
+reports a terminal status or the 9-move hard cap is hit. Both strategies are implemented: `SIMPLE`
+(`RandomMoveStrategy`) picks a uniformly random empty cell; `ADVANCED` (`RuleBasedMoveStrategy`) is
+deterministic, following win &gt; block &gt; center &gt; corner &gt; side. `cancel()` is not
+implemented yet.
 
 ## Error handling
 
@@ -82,7 +103,7 @@ A session's *live* board/move history while a simulation is running is process-l
 
 - `SessionNotFoundException` → `404 SESSION_NOT_FOUND` on `GET`/`simulate`/`events` for an unknown session. Existence is checked before ownership, so a missing session is never reported as a permissions problem.
 - `NotSessionOwnerException` → `403 NOT_SESSION_OWNER` when `/simulate` is called without the cookie set on that session's `POST /sessions`, or with a different session's cookie.
-- `SimulationStarter.start` → `409 SIMULATION_ALREADY_RUNNING` if a simulation for the session is already `IN_PROGRESS`; the check is a fast-path repository query backed by the `running_session_id` unique index above as the actual race guard, so two concurrent `/simulate` calls always produce exactly one `202` and one `409`.
+- `SimulationStarter.start` → `409 SIMULATION_ALREADY_RUNNING` (session was `IN_PROGRESS`) or `409 SESSION_ALREADY_COMPLETED` (session was already terminal), both decided by a single `claimForSimulation` compare-and-swap — no separate pre-check query and no unique index, so two concurrent `/simulate` calls always produce exactly one `202` and one `409` with no race window between them.
 - `GameEngineClientImpl` classifies every engine-call failure into a typed exception — never a downstream status pass-through — and retries only `EngineUnavailableException` (timeout/connection-refused/5xx), up to `ENGINE_RETRY_MAX_ATTEMPTS` with exponential backoff and jitter. A move is idempotent per `(gameId, symbol, position)`, so retrying after a timeout is safe.
-- `SimulationRunner.run` guarantees a session is never left `IN_PROGRESS`: on any `RuntimeException` it persists a `FAILED` row with `error_code`/`error_message`, publishes a `failure` SSE event, and always completes the SSE emitter in a `finally` — persist, notify, release, in that order.
+- `SimulationRunner.run` guarantees a session is never left `IN_PROGRESS`: on any `RuntimeException` it persists a `FAILED` row with `error_code`/`error_message` via `SessionStateWriter.fail`, publishes a `failure` SSE event, and always completes the SSE emitter in a `finally` — persist, notify, release, in that order.
 - `CorrelationIdFilter` reads/generates `X-Correlation-Id`, puts it in MDC as `traceId`, and echoes it on the response; `GameEngineClientImpl` forwards the same id to the engine, and `SimulationStarter` captures it (MDC doesn't cross `Thread.ofVirtual().start()`) so the background simulation's logs and SSE failure events carry it too.

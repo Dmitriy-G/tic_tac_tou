@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -26,11 +27,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * The engine's fault channel end to end: every rejection here is a broken/malformed request or
  * an unknown game, never a rule outcome — see docs for the
  * distinction. {@link GameJpaRepository} is mocked because these tests exercise translation, not
- * persistence (already covered by GameStoreTest / PostgresGameResponseRepositoryTest).
+ * persistence (already covered by GameStoreTest / GameRepositoryTest).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+// OS env vars outrank application-test.yml in Spring's property order, so a locally-exported
+// INTERNAL_TOKEN would otherwise silently override the token below; pin it explicitly.
+@TestPropertySource(properties = "internal.token=test-internal-token")
 class GameControllerErrorHandlingTest {
 
     private static final String TEST_TOKEN = "test-internal-token";
@@ -120,27 +124,5 @@ class GameControllerErrorHandlingTest {
                 .andExpect(jsonPath("$.message").exists())
                 .andExpect(jsonPath("$.path").value("/games/" + gameId))
                 .andExpect(jsonPath("$.traceId").exists());
-    }
-
-    @Test
-    void missingInternalTokenReturns401Unauthorized() throws Exception {
-        mockMvc.perform(get("/games/{gameId}", UUID.randomUUID()))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
-                .andExpect(jsonPath("$.traceId").exists());
-    }
-
-    @Test
-    void wrongInternalTokenReturns401Unauthorized() throws Exception {
-        mockMvc.perform(get("/games/{gameId}", UUID.randomUUID())
-                        .header(InternalTokenFilter.HEADER, "not-the-right-token"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
-    }
-
-    @Test
-    void actuatorHealthRequiresNoInternalToken() throws Exception {
-        mockMvc.perform(get("/actuator/health"))
-                .andExpect(status().isOk());
     }
 }

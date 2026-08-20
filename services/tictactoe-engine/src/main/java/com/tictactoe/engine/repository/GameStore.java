@@ -26,6 +26,10 @@ public class GameStore {
         return new Game(entity);
     }
 
+    // DEFERRED-3: save() overwrites an existing row with this id instead of rejecting a collision.
+    // No longer a live risk in practice — the session service now enforces gameId == sessionId and
+    // a session can only ever be simulated once (docs/adr/0004-session-is-the-game.md), so the
+    // engine never sees a second createGame for an id already in use. Still worth fixing properly.
     public void create(String gameId, List<String> board) {
         GameEntity entity = new GameEntity();
         entity.setId(toUuid(gameId));
@@ -42,10 +46,17 @@ public class GameStore {
         }
     }
 
-    public void save(Game game, List<String> board, GameState state) {
-        GameEntity entity = game.entity();
-        entity.setBoard(BoardUtils.convertToString(board));
-        entity.setState(state);
-        gameRepository.save(entity);
+    /**
+     * Writes the new board only if the stored board is still the one {@code game} was loaded with.
+     * Returns {@code false} when another thread committed a move first, leaving the caller to
+     * re-read and re-validate. No locking: this is a single conditional UPDATE.
+     */
+    public boolean compareAndSave(Game game, List<String> board, GameState state) {
+        int updated = gameRepository.compareAndSwapBoard(
+                game.entity().getId(),
+                game.rawBoard(),
+                BoardUtils.convertToString(board),
+                state);
+        return updated == 1;
     }
 }

@@ -35,10 +35,6 @@ public class SseEmitterRegistry {
         this.emitterFactory = emitterFactory;
     }
 
-    public SseEmitter register(String sessionId) {
-        return register(sessionId, null);
-    }
-
     public SseEmitter register(String sessionId, String lastEventId) {
         SseEmitter emitter = emitterFactory.get();
         List<SseEmitter> sessionEmitters = emitters.computeIfAbsent(sessionId, id -> new CopyOnWriteArrayList<>());

@@ -1,5 +1,7 @@
 # Distributed Tic Tac Toe
 
+![CI](https://github.com/Dmitriy-G/tic_tac_tou/actions/workflows/ci.yml/badge.svg)
+
 A distributed Tic Tac Toe application in which the game is played automatically by microservices, with a UI that watches the game unfold.
 
 ## Components
@@ -61,11 +63,33 @@ curl -s http://localhost:5173/api/sessions/$SID   # GET is open, no cookie neede
 
 The engine and both databases are reachable only from inside the Compose network by default. To
 inspect them manually (e.g. the engine's Swagger UI), bring up the debug profile, which
-republishes `8081` via a `socat` sidecar:
+republishes the engine on `8081` and both databases on `5433`/`5434` via `socat` sidecars:
 
 ```bash
 docker compose --profile debug up -d
 curl http://localhost:8081/actuator/health
+```
+
+The same debug profile also republishes both databases, for a SQL client (DataGrip, DBeaver, or
+`psql` from the host):
+
+| Database | Host | Port | User | Password |
+| --- | --- | --- | --- | --- |
+| `engine_db` | `localhost` | `5433` | `engine` | `engine` |
+| `session_db` | `localhost` | `5434` | `session` | `session` |
+
+```bash
+docker compose --profile debug up -d
+psql -h localhost -p 5433 -U engine engine_db
+
+docker compose --profile debug down    # closes the debug ports again; services keep running
+```
+
+If you only need a quick query, no port is required at all — `psql` can run inside the container:
+
+```bash
+docker compose exec engine-db psql -U engine engine_db
+docker compose exec session-db psql -U session session_db
 ```
 
 ## Running each service individually
@@ -118,6 +142,26 @@ cd services/tictactoe-frontend
 npm run type-check
 ```
 
+## CI
+
+`.github/workflows/ci.yml` runs on every push (any branch) and every pull request, with a
+concurrency group that cancels superseded runs on the same ref. Two jobs run in parallel so a
+frontend lint failure never hides a backend test failure:
+
+- **Backend** — SpotBugs static analysis (`mvn spotbugs:check`, threshold `High`) followed by
+  `mvn verify` (compiles, runs the full JUnit suite, and would run Failsafe `*IT` integration
+  tests). Surefire reports are uploaded as an artifact even when the build fails.
+- **Frontend** — `npm ci`, ESLint (`--max-warnings 0`, so warnings fail the build), `tsc` type
+  checking, the Vitest suite, and the production build.
+
+A third job, **Docker images build**, runs `docker compose build` after both of the above pass, to
+catch a Dockerfile path broken by a module rename; it does not start the containers or hit the API
+— that is the integration test's job, not CI's.
+
+No path filtering: with three Maven modules and one frontend, the whole suite runs in a couple of
+minutes, so every commit runs everything. No secrets are required — `INTERNAL_TOKEN` is only used
+at runtime and the test profile (`application-test.yml`) supplies its own value.
+
 ## Error handling
 
 Both services share one error shape and one code catalog (`com.tictactoe.common.error` in
@@ -131,27 +175,21 @@ is the `X-Correlation-Id` correlation id, echoed on the response header too.
 | --- | --- | --- |
 | `VALIDATION_ERROR` | 400 | Request body/params failed `@Valid` constraints |
 | `MALFORMED_REQUEST` | 400 | Body isn't valid JSON, or another `IllegalArgumentException` |
-| `NOT_FOUND` | 404 | Generic not-found |
 | `UNAUTHORIZED` | 401 | Engine: missing/invalid `X-Internal-Token` (session→engine boundary only) |
 | `NOT_SESSION_OWNER` | 403 | Session: `/simulate` called without the creating session's owner cookie |
 | `METHOD_NOT_ALLOWED` | 405 | Wrong HTTP method for the path |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | Wrong `Content-Type` |
-| `CONFLICT` | 409 | Generic conflict |
-| `TOO_MANY_REQUESTS` | 429 | Generic rate limit |
 | `INTERNAL_ERROR` | 500 | Unexpected exception (catch-all) |
 | `GAME_NOT_FOUND` | 404 | Engine: unknown `gameId` |
-| `GAME_ALREADY_EXISTS` | 409 | Engine: reserved, not yet used |
 | `INVALID_GAME_ID` | 400 | Engine: `gameId` path variable isn't a UUID |
 | `SESSION_NOT_FOUND` | 404 | Session: unknown `sessionId` |
-| `INVALID_SESSION_ID` | 400 | Session: reserved, not yet used |
+| `INVALID_SESSION_ID` | 400 | Session: `sessionId` path variable isn't a UUID |
 | `SIMULATION_ALREADY_RUNNING` | 409 | Session: `/simulate` called while one is already running |
-| `SESSION_ALREADY_COMPLETED` | 409 | Session: reserved, not yet used |
-| `SIMULATION_LIMIT_REACHED` | 429 | Session: reserved, not yet used |
+| `SESSION_ALREADY_COMPLETED` | 409 | Session: `/simulate` called on a session that already reached a terminal state |
 | `ENGINE_UNAVAILABLE` | 503 | Session→engine: timeout / connection refused / 5xx — retried |
 | `ENGINE_STATE_LOST` | 502 | Session→engine: engine returned 404 for a game the session expects to exist |
 | `ENGINE_CONTRACT_VIOLATION` | 500 | Session→engine: engine returned 400 — the session's bug, not the caller's |
 | `ENGINE_BAD_RESPONSE` | 502 | Session→engine: unparseable or incomplete response |
-| `SIMULATION_TIMEOUT` | 500 | Session: reserved, not yet used |
 | `DATABASE_ERROR` | 503 | Either service: repository threw `DataAccessException` |
 
 ## Structure

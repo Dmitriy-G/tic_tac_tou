@@ -13,4 +13,4 @@ spring:
     locations: classpath:db/migration
 
 internal:
-  token: test-internal-token
+  token: test-token

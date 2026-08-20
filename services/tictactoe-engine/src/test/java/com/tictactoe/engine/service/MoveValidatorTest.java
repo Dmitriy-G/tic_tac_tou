@@ -59,6 +59,9 @@ class MoveValidatorTest {
         assertThat(status).isEqualTo(StepStatus.OUT_OF_TURN);
     }
 
+    // StepStatus.INVALID_POSITION is unreachable: validate() sets it, then unconditionally calls
+    // board.get(move.position()) before returning, which throws first for any out-of-range
+    // position. These two tests characterise that as current behaviour, not fix it.
     @Test
     void positionAboveRangeThrowsInsteadOfReturningInvalidPosition() {
         List<String> board = emptyBoard();

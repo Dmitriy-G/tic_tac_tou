@@ -13,9 +13,11 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+// Runs on H2 in PostgreSQL compatibility mode (application-test.yml), not real Postgres — named
+// accordingly.
 @SpringBootTest(classes = EngineApplication.class)
 @ActiveProfiles("test")
-class PostgresGameResponseRepositoryTest {
+class GameRepositoryTest {
 
     @Autowired
     private GameJpaRepository gameRepository;
